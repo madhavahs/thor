@@ -1,0 +1,15 @@
+{
+  "name": "starl-cloud-platform",
+  "version": "1.0.0",
+  "description": "STARL_CLOUD Open IoT Cloud Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "ws": "^8.17.0",
+    "mqtt": "^5.5.2"
+  }
+}

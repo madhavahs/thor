@@ -1,0 +1,21 @@
+{
+  "name": "STARK Cloud Quantum IoT",
+  "short_name": "STARK IoT",
+  "description": "Next-Gen Quantum IoT Cloud Platform with Live ESP32-CAM and Actuators",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080c14",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2933/2933245.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2933/2933245.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

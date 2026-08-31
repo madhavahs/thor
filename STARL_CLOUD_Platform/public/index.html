@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>STARK Quantum IoT Cloud | Promax Edition</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#10b981" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="stark-navbar">
+    <div class="brand-wrapper">
+      <div class="brand-core-icon">⚡</div>
+      <div>
+        <div class="brand-title">STARK CLOUD <span class="badge-stark">PROMAX</span></div>
+        <div class="brand-subtitle">Quantum IoT Core & Surveillance Engine</div>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="device-dropdown-box">
+        <i data-lucide="cpu" style="width: 16px; height: 16px; color: var(--stark-green);"></i>
+        <select id="device-selector" onchange="onDeviceChange()"></select>
+      </div>
+
+      <div id="device-status-pill" class="status-pill online">
+        <span class="status-beacon"></span>
+        <span id="device-status-text">Online</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= APP LAYOUT ================= -->
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="stark-sidebar">
+      <nav class="sidebar-nav">
+        <button class="nav-link-btn active" onclick="switchStage('dashboard')">
+          <i data-lucide="layout-dashboard"></i> Command Center
+        </button>
+        <button class="nav-link-btn" onclick="switchStage('camera')">
+          <i data-lucide="camera"></i> ESP32-CAM Lab
+        </button>
+        <button class="nav-link-btn" onclick="switchStage('datastreams')">
+          <i data-lucide="layers"></i> Datastreams (V-Pins)
+        </button>
+        <button class="nav-link-btn" onclick="switchStage('automations')">
+          <i data-lucide="zap"></i> Rule Automations
+        </button>
+        <button class="nav-link-btn" onclick="switchStage('simulator')">
+          <i data-lucide="box"></i> Quantum Sandbox
+        </button>
+        <button class="nav-link-btn" onclick="switchStage('firmware')">
+          <i data-lucide="code"></i> C++ Firmware SDK
+        </button>
+      </nav>
+
+      <div class="sidebar-token-pill">
+        <div class="token-label">DEVICE AUTH TOKEN</div>
+        <div class="token-bar">
+          <code id="sidebar-auth-token">stark_tok_...</code>
+          <button class="icon-action-btn" onclick="copyToken()" title="Copy"><i data-lucide="copy"></i></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Stage -->
+    <main class="main-stage">
+
+      <!-- ================= 1. COMMAND CENTER (MASTER DASHBOARD) ================= -->
+      <section id="stage-dashboard" class="tab-stage-pane active">
+        <div class="pane-title-row">
+          <div>
+            <h2>Master Command Center</h2>
+            <p>Real-time telemetry, analog dials, actuators, and motor controls</p>
+          </div>
+          <div class="quick-stats-row" style="display: flex; gap: 10px;">
+            <span class="badge-stark"><i data-lucide="radio" style="width: 12px; height: 12px;"></i> MQTT: 1883 / 8084</span>
+          </div>
+        </div>
+
+        <div class="widgets-masonry">
+
+          <!-- WIDGET 1: ANALOG SPEEDOMETER / TACHOMETER (V8) -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="gauge" style="color: var(--stark-cyan);"></i> Speedometer</span>
+              <span class="pin-chip">PIN V8</span>
+            </div>
+            <div class="speedo-wrapper">
+              <canvas id="speedoCanvas" width="260" height="160"></canvas>
+              <div class="speedo-digital-readout">
+                <div class="speedo-val-big" id="speedo-val-display">0.0</div>
+                <div class="speedo-unit-sub">KM/H / RPM</div>
+              </div>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>Min: 0 km/h</span>
+              <span>Max: 240 km/h</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 2: SERVO MOTOR ANGULAR DIAL (V6) -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="rotate-cw" style="color: var(--stark-amber);"></i> Servo Motor (0° - 180°)</span>
+              <span class="pin-chip">PIN V6</span>
+            </div>
+            <div class="servo-stage">
+              <div class="servo-protractor">
+                <div class="servo-arm" id="servo-arm-indicator"></div>
+                <div class="servo-center-pivot"></div>
+              </div>
+              <div style="font-size: 1.4rem; font-weight: 800; color: var(--stark-amber);">
+                <span id="servo-angle-text">90</span>°
+              </div>
+              <input type="range" id="slider-servo" class="promax-slider" min="0" max="180" value="90" oninput="onServoInput(this.value)" />
+              <div class="servo-presets">
+                <button class="preset-chip" onclick="setServoAngle(0)">0° (Left)</button>
+                <button class="preset-chip" onclick="setServoAngle(90)">90° (Mid)</button>
+                <button class="preset-chip" onclick="setServoAngle(180)">180° (Right)</button>
+              </div>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>PWM Angle Control</span>
+              <span>Target: GPIO 18</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 3: POTENTIOMETER & ANALOG ADC LEVEL (V7) -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="activity" style="color: var(--stark-purple);"></i> Potentiometer (ADC)</span>
+              <span class="pin-chip">PIN V7</span>
+            </div>
+            <div class="pot-meter-box">
+              <div class="pot-bar-track">
+                <div class="pot-bar-fill" id="pot-fill-bar"></div>
+              </div>
+              <div class="pot-readout-grid">
+                <div class="readout-card">
+                  <div class="r-title">RAW 12-BIT ADC</div>
+                  <div class="r-val" id="pot-raw-val">2048</div>
+                </div>
+                <div class="readout-card">
+                  <div class="r-title">CALCULATED VOLTAGE</div>
+                  <div class="r-val" id="pot-volt-val" style="color: var(--stark-cyan);">1.65 V</div>
+                </div>
+              </div>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>Resolution: 12-Bit (0-4095)</span>
+              <span>Pin: GPIO 34</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 4: POWER RELAY / MAIN ACTUATOR (V0) -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="power" style="color: var(--stark-green);"></i> High-Power Relay</span>
+              <span class="pin-chip">PIN V0</span>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem 0;">
+              <button id="btn-master-relay" class="switch-btn-promax" onclick="toggleMasterRelay()">
+                <div class="status-beacon" id="relay-beacon" style="color: #475569;"></div>
+                <span id="relay-btn-text">TURN ON</span>
+              </button>
+              <div style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted);">
+                State: <strong id="relay-state-label">OFF (0)</strong>
+              </div>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>Coil Drive: GPIO 2</span>
+              <span>250VAC / 10A</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 5: PWM LED BRIGHTNESS & THROTTLE (V3 / V9) -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="sun" style="color: var(--stark-amber);"></i> PWM Brightness & Throttle</span>
+              <span class="pin-chip">PIN V3 / V9</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 1.2rem;">
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+                  <span>LED Brightness (V3)</span>
+                  <strong id="pwm-val-text" style="color: var(--stark-green);">75%</strong>
+                </div>
+                <input type="range" id="slider-pwm" class="promax-slider" min="0" max="100" value="75" oninput="onPWMInput(this.value)" />
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+                  <span>Motor Throttle (V9)</span>
+                  <strong id="throttle-val-text" style="color: var(--stark-cyan);">45%</strong>
+                </div>
+                <input type="range" id="slider-throttle" class="promax-slider" min="0" max="100" value="45" oninput="onThrottleInput(this.value)" />
+              </div>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>Frequency: 5 KHz</span>
+              <span>Duty Cycle: 8-Bit</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 6: RGB NEOPIXEL COLOR LIGHT (V4) -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="palette" style="color: var(--stark-rose);"></i> NeoPixel RGB Matrix</span>
+              <span class="pin-chip">PIN V4</span>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0;">
+              <input type="color" id="rgb-matrix-picker" value="#06b6d4" onchange="onRGBColorChange(this.value)" style="width: 75px; height: 75px; border: none; border-radius: 50%; cursor: pointer; background: transparent;" />
+              <code id="rgb-hex-display" style="margin-top: 8px; font-size: 0.9rem; color: var(--stark-cyan); font-family: monospace;">#06b6d4</code>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>WS2812B Protocol</span>
+              <span>Pin: GPIO 15</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 7: SUPERCHART MULTI-TELEMETRY (GRID 2 COLS) -->
+          <div class="glass-widget grid-col-2">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="line-chart" style="color: var(--stark-green);"></i> SuperChart Telemetry Stream</span>
+              <span class="pin-chip">V1 (Temp) / V2 (Humidity) / V8 (Speed)</span>
+            </div>
+            <div class="superchart-stage">
+              <canvas id="superChartCanvas"></canvas>
+            </div>
+            <div class="widget-bottom-bar">
+              <span>Auto-Refreshing Live Stream</span>
+              <span>Sampling: 1000ms</span>
+            </div>
+          </div>
+
+          <!-- WIDGET 8: LIVE TERMINAL EVENT BUS -->
+          <div class="glass-widget">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="terminal" style="color: var(--stark-green);"></i> STARK Event Bus</span>
+              <button class="preset-chip" style="width: auto; padding: 2px 8px;" onclick="clearTerminal()">Clear</button>
+            </div>
+            <div id="stark-terminal" class="stark-terminal-box"></div>
+            <div class="widget-bottom-bar">
+              <span>Bi-directional WebSocket Terminal</span>
+              <span>Port: 3000/ws</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ================= 2. ESP32-CAM SURVEILLANCE & MEDIA LAB ================= -->
+      <section id="stage-camera" class="tab-stage-pane">
+        <div class="pane-title-row">
+          <div>
+            <h2>ESP32-CAM Surveillance & Media Lab</h2>
+            <p>Live video streaming, instant cloud snapshots, and high-definition video recording</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="preset-chip" style="padding: 6px 14px; background: var(--glass-card);" onclick="toggleCamFlash()"><i data-lucide="zap" style="width: 14px; height: 14px;"></i> Flash LED (GPIO 4)</button>
+          </div>
+        </div>
+
+        <div class="cam-surveillance-grid">
+          <!-- Live Viewfinder -->
+          <div class="cam-viewfinder-card">
+            <!-- Zero Latency Stream Selector Bar -->
+            <div style="display: flex; gap: 8px; margin-bottom: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+              <div style="display: flex; gap: 6px;">
+                <button id="btn-mode-zero-latency" class="preset-chip" style="width: auto; padding: 7px 14px; background: rgba(16, 185, 129, 0.2); border-color: var(--stark-green); color: var(--stark-green); font-weight: 800;" onclick="activateZeroLatencyMode()">
+                  <i data-lucide="zap" style="width: 14px; height: 14px;"></i> ⚡ ZERO LATENCY (<20ms)
+                </button>
+                <button id="btn-mode-cloud" class="preset-chip" style="width: auto; padding: 7px 14px;" onclick="activateCloudStreamMode()">
+                  <i data-lucide="globe" style="width: 14px; height: 14px;"></i> 🌐 Cloud Mode
+                </button>
+              </div>
+              <div style="display: flex; gap: 6px; flex: 1; max-width: 380px;">
+                <input type="text" id="direct-stream-input" placeholder="ESP32 Stream URL (e.g. http://192.168.1.50:81/stream)" style="flex: 1; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); color: var(--stark-cyan); padding: 7px 10px; border-radius: 8px; font-size: 0.75rem; font-family: monospace;" />
+                <button class="preset-chip" style="width: auto; padding: 7px 12px;" onclick="connectDirectStream(document.getElementById('direct-stream-input').value)">
+                  Connect
+                </button>
+              </div>
+            </div>
+
+            <div class="viewfinder-hud">
+              <!-- Native Hardware Zero-Latency Stream Image -->
+              <img id="liveCamFeedImg" alt="Live Zero Latency Feed" style="width: 100%; height: 100%; object-fit: cover; display: none; border-radius: 12px;" />
+              
+              <!-- Cloud Stream Canvas -->
+              <canvas id="camStreamCanvas" width="640" height="360"></canvas>
+              
+              <!-- HUD Overlays -->
+              <div class="hud-overlay">
+                <div class="rec-badge" id="rec-status-badge">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #fff;"></span> REC <span id="rec-duration">00:00</span>
+                </div>
+                <div class="cam-stats-tag" id="cam-fps-tag">30 FPS | SVGA | ONLINE</div>
+              </div>
+            </div>
+
+            <!-- Action Controls Strip -->
+            <div class="cam-controls-strip">
+              <div style="display: flex; gap: 8px;">
+                <button class="btn-cam snap" onclick="captureSnapshot()">
+                  <i data-lucide="camera"></i> Snap Photo
+                </button>
+                <button id="btn-video-rec" class="btn-cam rec" onclick="toggleVideoRecording()">
+                  <i data-lucide="video"></i> <span id="rec-btn-text">Record Video</span>
+                </button>
+                <button class="btn-cam" onclick="toggleWebCamFlip()">
+                  <i data-lucide="refresh-cw"></i> Flip View
+                </button>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem;">
+                <label>Resolution:</label>
+                <select id="cam-res-select" onchange="changeCamRes(this.value)" style="background: rgba(0,0,0,0.6); color: var(--stark-cyan); border: 1px solid var(--glass-border); padding: 5px 10px; border-radius: 8px; font-weight: 700; cursor: pointer;">
+                  <option value="HQVGA">HQVGA (240x176 - Ultra Fast)</option>
+                  <option value="QVGA" selected>QVGA (320x240 - Medium / Recommended)</option>
+                  <option value="CIF">CIF (400x296 - Smooth)</option>
+                  <option value="VGA">VGA (640x480 - Standard)</option>
+                  <option value="SVGA">SVGA (800x600 - High Detail)</option>
+                  <option value="UXGA">UXGA (1600x1200 - Ultra Photo)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cloud Media Gallery -->
+          <div class="gallery-pane-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.75rem;">
+              <h3 style="font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="hard-drive" style="color: var(--stark-cyan);"></i> Cloud Media Vault
+              </h3>
+              <span class="badge-stark" id="gallery-count">0 items</span>
+            </div>
+            <div id="media-gallery-grid" class="gallery-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 3. DATASTREAMS (VIRTUAL PINS) ================= -->
+      <section id="stage-datastreams" class="tab-stage-pane">
+        <div class="pane-title-row">
+          <div>
+            <h2>Virtual Pin Datastreams</h2>
+            <p>Comprehensive telemetry mapping & MQTT topics for STARK Architecture</p>
+          </div>
+        </div>
+
+        <div class="glass-widget grid-col-3">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--glass-border); color: var(--text-muted); text-align: left;">
+                <th style="padding: 1rem;">Pin</th>
+                <th style="padding: 1rem;">Datastream Name</th>
+                <th style="padding: 1rem;">Type</th>
+                <th style="padding: 1rem;">Range</th>
+                <th style="padding: 1rem;">Current Value</th>
+                <th style="padding: 1rem;">MQTT Topic Endpoint</th>
+              </tr>
+            </thead>
+            <tbody id="vpins-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================= 4. AUTOMATION & RULES ENGINE ================= -->
+      <section id="stage-automations" class="tab-stage-pane">
+        <div class="pane-title-row">
+          <div>
+            <h2>Rule Engine & Conditional Triggers</h2>
+            <p>Create autonomous hardware workflows (e.g. IF Potentiometer > 3000 THEN set Servo = 180°)</p>
+          </div>
+          <button class="preset-chip" style="padding: 8px 16px; background: var(--stark-green); color: #060911;" onclick="openNewRuleModal()">
+            <i data-lucide="plus"></i> Create Rule
+          </button>
+        </div>
+
+        <div class="widgets-masonry" id="rules-cards-grid"></div>
+      </section>
+
+      <!-- ================= 5. QUANTUM SANDBOX (SIMULATOR) ================= -->
+      <section id="stage-simulator" class="tab-stage-pane">
+        <div class="pane-title-row">
+          <div>
+            <h2>Quantum Hardware Sandbox</h2>
+            <p>Interactive virtual ESP32 and ESP32-CAM simulating all sensors, dials, and actuators</p>
+          </div>
+          <button id="sim-toggle-btn" class="preset-chip" style="padding: 8px 18px; background: var(--stark-green); color: #060911;" onclick="toggleSimulatorEngine()">
+            <i data-lucide="play"></i> Start Quantum Simulation
+          </button>
+        </div>
+
+        <div class="sim-device-container">
+          <div class="sim-quantum-board">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+              <div style="font-weight: 800; color: var(--stark-green); font-size: 1.1rem;">
+                ⚡ ESP32-WROOM-32 + OV2640 CAMERA SIMULATOR
+              </div>
+              <span class="badge-stark" id="sim-engine-badge">SIMULATOR IDLE</span>
+            </div>
+
+            <div class="widgets-masonry" style="gap: 1rem;">
+              <!-- Sim Sensor 1: Potentiometer Knob -->
+              <div class="readout-card">
+                <div class="r-title">POTENTIOMETER SIMULATOR (V7)</div>
+                <input type="range" id="sim-pot-slider" class="promax-slider" min="0" max="4095" value="2048" oninput="onSimPotInput(this.value)" />
+                <div style="margin-top: 6px; font-weight: 700; color: var(--stark-purple);"><span id="sim-pot-txt">2048</span> ADC</div>
+              </div>
+
+              <!-- Sim Sensor 2: Speedometer Slider -->
+              <div class="readout-card">
+                <div class="r-title">TACHOMETER / SPEED SIM (V8)</div>
+                <input type="range" id="sim-speed-slider" class="promax-slider" min="0" max="240" step="1" value="65" oninput="onSimSpeedInput(this.value)" />
+                <div style="margin-top: 6px; font-weight: 700; color: var(--stark-cyan);"><span id="sim-speed-txt">65.0</span> KM/H</div>
+              </div>
+
+              <!-- Sim Sensor 3: Temp & Humidity -->
+              <div class="readout-card">
+                <div class="r-title">DHT22 TEMPERATURE (V1)</div>
+                <input type="range" id="sim-temp-slider" class="promax-slider" min="0" max="60" step="0.5" value="26" oninput="onSimTempInput(this.value)" />
+                <div style="margin-top: 6px; font-weight: 700; color: var(--stark-amber);"><span id="sim-temp-txt">26.0</span> °C</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 6. C++ FIRMWARE SDK ================= -->
+      <section id="stage-firmware" class="tab-stage-pane">
+        <div class="pane-title-row">
+          <div>
+            <h2>STARK Architecture C++ Firmware SDK</h2>
+            <p>Production Arduino sketches tailored for Standard ESP32 and ESP32-CAM</p>
+          </div>
+          <button class="preset-chip" style="padding: 8px 18px; background: var(--stark-green); color: #060911;" onclick="copyActiveFirmware()">
+            <i data-lucide="copy"></i> Copy Active Sketch
+          </button>
+        </div>
+
+        <div class="widgets-masonry">
+          <div class="glass-widget grid-col-3">
+            <div class="widget-top-bar">
+              <span class="widget-label"><i data-lucide="cpu" style="color: var(--stark-cyan);"></i> All-In-One ESP32 Sketch (Servo, Potentiometer, Relays, Sensors)</span>
+            </div>
+            <pre style="background: #04060a; padding: 1.25rem; border-radius: 12px; overflow-x: auto;"><code id="firmware-code-box" style="font-family: monospace; font-size: 0.85rem; color: #38bdf8;">Loading sketch...</code></pre>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

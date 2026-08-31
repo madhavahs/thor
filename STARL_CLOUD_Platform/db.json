@@ -1,0 +1,281 @@
+{
+  "template": {
+    "id": "TMPL_ESP32_01",
+    "name": "Quickstart ESP32 Template",
+    "hardware": "ESP32",
+    "connectionType": "Wi-Fi",
+    "datastreams": [
+      {
+        "pin": "V0",
+        "name": "LED Switch",
+        "type": "Integer",
+        "min": 0,
+        "max": 1,
+        "default": 0
+      },
+      {
+        "pin": "V1",
+        "name": "Temperature",
+        "type": "Double",
+        "unit": "°C",
+        "min": -40,
+        "max": 80,
+        "default": 24.5
+      },
+      {
+        "pin": "V2",
+        "name": "Humidity",
+        "type": "Double",
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "default": 55
+      },
+      {
+        "pin": "V3",
+        "name": "LED Brightness",
+        "type": "Integer",
+        "min": 0,
+        "max": 100,
+        "default": 80
+      },
+      {
+        "pin": "V4",
+        "name": "RGB Color",
+        "type": "String",
+        "default": "#24c382"
+      },
+      {
+        "pin": "V5",
+        "name": "Terminal Log",
+        "type": "String",
+        "default": "Device initialized"
+      }
+    ]
+  },
+  "devices": [
+    {
+      "id": "starl_dev_01",
+      "name": "My Quickstart ESP32",
+      "templateId": "TMPL_ESP32_01",
+      "authToken": "blynk_tok_84f92bc31a0e",
+      "hardware": "ESP32",
+      "status": "online",
+      "lastSeen": "2026-08-31T11:50:58.518Z",
+      "pinValues": {
+        "V0": 0,
+        "V1": 25.5,
+        "V2": 60,
+        "V3": 80,
+        "V4": "#24c382",
+        "V5": "System ready. Listening on EMQX.",
+        "V7": 2078,
+        "V8": 60.085208623931024,
+        "V6": 84,
+        "V12": "HQVGA",
+        "V11": 0
+      }
+    },
+    {
+      "id": "starl_dev_1641",
+      "name": "esp321",
+      "templateId": "TMPL_ESP32_01",
+      "authToken": "blynk_tok_6d0574f54a",
+      "hardware": "ESP32",
+      "status": "offline",
+      "lastSeen": "2026-08-31T11:50:16.155Z",
+      "pinValues": {
+        "V0": 0,
+        "V1": 24,
+        "V2": 50,
+        "V3": 80,
+        "V4": "#24c382",
+        "V5": "Device created.",
+        "V11": 0
+      }
+    },
+    {
+      "id": "starl_dev_9bc5",
+      "name": "esp321",
+      "templateId": "TMPL_ESP32_01",
+      "authToken": "blynk_tok_4297b568af",
+      "hardware": "ESP32",
+      "status": "offline",
+      "lastSeen": "2026-08-31T07:01:25.794Z",
+      "pinValues": {
+        "V0": 0,
+        "V1": 24,
+        "V2": 50,
+        "V3": 80,
+        "V4": "#24c382",
+        "V5": "Device created."
+      }
+    }
+  ],
+  "telemetryHistory": {
+    "starl_dev_01": [
+      {
+        "timestamp": "12:36:26 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:30 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:30 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:35 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:36 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:40 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:40 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:45 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:46 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:50 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:51 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:55 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:36:55 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:00 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:01 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:05 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:06 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:10 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:10 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:15 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:16 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:20 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:20 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:25 pm",
+        "V1": 25.5,
+        "V2": 60
+      },
+      {
+        "timestamp": "12:37:26 pm",
+        "V1": 25.5,
+        "V2": 60
+      }
+    ],
+    "starl_dev_1641": [],
+    "starl_dev_9bc5": []
+  },
+  "rules": [
+    {
+      "id": "rule_1",
+      "name": "Servo Safety Over-Heat Response",
+      "conditionPin": "V1",
+      "operator": ">",
+      "threshold": 30,
+      "targetPin": "V6",
+      "actionValue": 180,
+      "enabled": true
+    },
+    {
+      "id": "rule_2",
+      "name": "Potentiometer Auto-Throttle Link",
+      "conditionPin": "V7",
+      "operator": ">",
+      "threshold": 3000,
+      "targetPin": "V0",
+      "actionValue": 1,
+      "enabled": true
+    }
+  ],
+  "media": {
+    "snapshots": [],
+    "recordings": []
+  },
+  "events": [
+    {
+      "id": "evt_1",
+      "timestamp": "12:00:00",
+      "title": "Device Connected",
+      "type": "INFO",
+      "desc": "My Quickstart ESP32 connected to cloud."
+    }
+  ]
+}
