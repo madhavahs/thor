@@ -26,7 +26,7 @@ const DATA_FILE = path.join(__dirname, 'db.json');
 });
 
 const PORT = process.env.PORT || 3000;
-const MQTT_BROKER_URL = 'mqtt://broker.emqx.io:1883';
+const MQTT_BROKER_URL = process.env.MQTT_BROKER || 'mqtt://broker.emqx.io:1883';
 
 // ====================== STARK ARCHITECTURE FULL MODEL ======================
 let state = {
