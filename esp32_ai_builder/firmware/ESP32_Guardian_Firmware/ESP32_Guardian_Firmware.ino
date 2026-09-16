@@ -1,5 +1,5 @@
-#include "include/GuardianConfig.h"
-#include "include/GuardianAgent.h"
+#include "GuardianConfig.h"
+#include "GuardianAgent.h"
 
 GuardianAgentClass Guardian;
 
