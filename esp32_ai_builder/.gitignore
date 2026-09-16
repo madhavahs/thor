@@ -1,0 +1,12 @@
+# Local binaries
+bin/
+*.exe
+*.zip
+
+# Build staging and outputs
+server/workspace/
+build/
+
+# Node dependencies & environment
+node_modules/
+.env
