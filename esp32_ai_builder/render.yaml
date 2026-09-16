@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: esp32-ai-builder
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: standard
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: DEVICE_AUTH_TOKEN
+        generateValue: true
+      - key: ARDUINO_CLI_PATH
+        value: /app/bin/arduino-cli
+      - key: WORKSPACE_DIR
+        value: /app/server/workspace
