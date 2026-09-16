@@ -52,10 +52,11 @@ async function uninstallLibrary(libName) {
   };
 }
 
-// System libraries bundled into ESP32 Core that must NEVER be uninstalled
+// System libraries bundled into ESP32 Core or required by Immortal Guardian
 const PROTECTED_SYSTEM_LIBRARIES = new Set([
   'WiFi', 'WebServer', 'HTTPClient', 'WiFiClientSecure',
-  'SPIFFS', 'FS', 'Update', 'Wire', 'SPI', 'EEPROM', 'Preferences'
+  'SPIFFS', 'FS', 'Update', 'Wire', 'SPI', 'EEPROM', 'Preferences',
+  'WebSockets', 'ArduinoJson'
 ]);
 
 async function syncLibraries(requiredLibNames = [], autoPrune = true) {
