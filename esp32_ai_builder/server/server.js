@@ -102,7 +102,8 @@ app.post('/api/build/deploy', async (req, res) => {
 
   // Trigger OTA update over WebSocket
   const host = req.headers.host;
-  const fwUrl = `http://${host}/firmware/${deviceId}/bin/${deviceId}.ino.bin`;
+  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+  const fwUrl = `${proto}://${host}/firmware/${deviceId}/bin/${deviceId}.ino.bin`;
   deviceManager.sendToDevice(deviceId, {
     type: 'START_OTA',
     url: fwUrl

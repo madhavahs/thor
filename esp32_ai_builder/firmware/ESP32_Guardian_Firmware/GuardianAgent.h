@@ -60,8 +60,14 @@ private:
     // Mark current firmware partition valid to cancel rollback
     esp_ota_mark_app_valid_cancel_rollback();
 
-    // Setup WebSocket client
+    // Setup WebSocket client: Use beginSSL for port 443 (Cloud/HTTPS), begin for local ports (3000, 80)
+#if (GUARDIAN_SERVER_PORT == 443)
+    Serial.println("[GUARDIAN] Connecting via secure SSL/TLS (WSS port 443)...");
     wsClient.beginSSL(GUARDIAN_SERVER_HOST, GUARDIAN_SERVER_PORT, "/ws/device");
+#else
+    Serial.printf("[GUARDIAN] Connecting via plain WebSocket (WS port %d)...\n", GUARDIAN_SERVER_PORT);
+    wsClient.begin(GUARDIAN_SERVER_HOST, GUARDIAN_SERVER_PORT, "/ws/device");
+#endif
     wsClient.setExtraHeaders("Authorization: Bearer " GUARDIAN_DEVICE_TOKEN "\r\nX-Device-Id: " GUARDIAN_DEVICE_ID);
     wsClient.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
       this->handleWsEvent(type, payload, length);
@@ -191,11 +197,21 @@ private:
   void performOTA(const String& url) {
     Serial.println("[GUARDIAN] Commencing OTA download from: " + url);
     logRemote("[OTA] Starting high-speed OTA download...");
-    WiFiClientSecure secClient;
-    secClient.setInsecure();
     HTTPClient http;
     http.setTimeout(15000);
-    if (!http.begin(secClient, url)) {
+
+    bool connectedHttp = false;
+    WiFiClientSecure secClient;
+    WiFiClient plainClient;
+
+    if (url.startsWith("https://")) {
+      secClient.setInsecure();
+      connectedHttp = http.begin(secClient, url);
+    } else {
+      connectedHttp = http.begin(plainClient, url);
+    }
+
+    if (!connectedHttp) {
       Serial.println("[GUARDIAN] HTTP connect failed");
       logRemote("[OTA] Error: HTTP connect failed");
       return;
