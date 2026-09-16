@@ -16,9 +16,6 @@ void setup() {
 }
 
 void loop() {
-  // Core 1 baseline blink idle loop
-  digitalWrite(2, HIGH);
-  delay(1000);
-  digitalWrite(2, LOW);
-  delay(1000);
+  // Core 1 user logic loop (idle by default, fully controllable via web UI and OTA)
+  vTaskDelay(pdMS_TO_TICKS(100));
 }
