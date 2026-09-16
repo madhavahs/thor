@@ -1,9 +1,7 @@
 services:
   - type: web
     name: esp32-ai-builder
-    env: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    runtime: docker
     plan: standard
     region: oregon
     envVars:
