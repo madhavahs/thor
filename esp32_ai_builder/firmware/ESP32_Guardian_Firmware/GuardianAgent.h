@@ -6,6 +6,7 @@
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
 #include <Update.h>
+#include <Preferences.h>
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
 #include "GuardianConfig.h"
@@ -15,8 +16,11 @@ public:
   WebSocketsClient wsClient;
   bool connected = false;
   unsigned long lastPing = 0;
+  unsigned long bootTime = 0;
+  int failedConnects = 0;
 
   void begin() {
+    bootTime = millis();
     Serial.println("[GUARDIAN] Initializing Immortal Guardian background task on Core 0...");
     xTaskCreatePinnedToCore(
       taskTrampoline,
@@ -48,45 +52,101 @@ private:
   }
 
   void runTask() {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(GUARDIAN_WIFI_SSID, GUARDIAN_WIFI_PASS);
+    Preferences prefs;
+    prefs.begin("guardian", false);
 
+    // Read stored config with compiled macros as default fallbacks
+    String ssid = prefs.getString("wifi_ssid", GUARDIAN_WIFI_SSID);
+    String pass = prefs.getString("wifi_pass", GUARDIAN_WIFI_PASS);
+    String host = prefs.getString("server_host", GUARDIAN_SERVER_HOST);
+    uint16_t port = prefs.getUShort("server_port", GUARDIAN_SERVER_PORT);
+
+    // Ensure we never use localhost if a real host was ever stored or compiled
+    if (host == "localhost" || host == "127.0.0.1" || host.length() == 0) {
+      if (String(GUARDIAN_SERVER_HOST) != "localhost" && String(GUARDIAN_SERVER_HOST) != "127.0.0.1") {
+        host = GUARDIAN_SERVER_HOST;
+      }
+    }
+    if (port == 0) port = GUARDIAN_SERVER_PORT;
+
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid.c_str(), pass.c_str());
+
+    int wifiAttempts = 0;
     while (WiFi.status() != WL_CONNECTED) {
       vTaskDelay(pdMS_TO_TICKS(500));
+      wifiAttempts++;
+      // If Wi-Fi fails after 30 seconds (60 attempts) on freshly flashed firmware, rollback
+      if (wifiAttempts > 60) {
+        checkRollback("WiFi connection timeout");
+        wifiAttempts = 0;
+      }
     }
 
     Serial.println("[GUARDIAN] WiFi Connected. IP: " + WiFi.localIP().toString());
-    
-    // Mark current firmware partition valid to cancel rollback
-    esp_ota_mark_app_valid_cancel_rollback();
+
+    // Save working Wi-Fi credentials to NVS
+    prefs.putString("wifi_ssid", ssid);
+    prefs.putString("wifi_pass", pass);
 
     // Setup WebSocket client: Use beginSSL for port 443 (Cloud/HTTPS), begin for local ports (3000, 80)
-#if (GUARDIAN_SERVER_PORT == 443)
-    Serial.println("[GUARDIAN] Connecting via secure SSL/TLS (WSS port 443)...");
-    wsClient.beginSSL(GUARDIAN_SERVER_HOST, GUARDIAN_SERVER_PORT, "/ws/device");
-#else
-    Serial.printf("[GUARDIAN] Connecting via plain WebSocket (WS port %d)...\n", GUARDIAN_SERVER_PORT);
-    wsClient.begin(GUARDIAN_SERVER_HOST, GUARDIAN_SERVER_PORT, "/ws/device");
-#endif
+    if (port == 443) {
+      Serial.printf("[GUARDIAN] Connecting via secure SSL/TLS to %s:443...\n", host.c_str());
+      wsClient.beginSSL(host.c_str(), port, "/ws/device");
+    } else {
+      Serial.printf("[GUARDIAN] Connecting via plain WebSocket to %s:%d...\n", host.c_str(), port);
+      wsClient.begin(host.c_str(), port, "/ws/device");
+    }
+
     wsClient.setExtraHeaders("Authorization: Bearer " GUARDIAN_DEVICE_TOKEN "\r\nX-Device-Id: " GUARDIAN_DEVICE_ID);
-    wsClient.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
-      this->handleWsEvent(type, payload, length);
+    wsClient.onEvent([this, &prefs, host, port](WStype_t type, uint8_t* payload, size_t length) {
+      this->handleWsEvent(type, payload, length, prefs, host, port);
     });
     wsClient.setReconnectInterval(3000);
 
     for (;;) {
       wsClient.loop();
+
+      // Check if newly flashed firmware failed to connect to Cloud Hub
+      if (!connected) {
+        if ((millis() - bootTime > 45000) || (failedConnects >= 6)) {
+          checkRollback("Failed to connect to Cloud Hub within timeout");
+        }
+      }
+
       vTaskDelay(pdMS_TO_TICKS(10));
     }
   }
 
-  void handleWsEvent(WStype_t type, uint8_t* payload, size_t length) {
+  void checkRollback(const char* reason) {
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    esp_ota_img_states_t ota_state;
+    if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
+      if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+        Serial.printf("[GUARDIAN CRITICAL] Auto-Rollback triggered: %s. Reverting to previous firmware...\n", reason);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        esp_ota_mark_app_invalid_rollback_and_reboot();
+      }
+    }
+  }
+
+  void handleWsEvent(WStype_t type, uint8_t* payload, size_t length, Preferences& prefs, const String& host, uint16_t port) {
     if (type == WStype_CONNECTED) {
       connected = true;
+      failedConnects = 0;
       Serial.println("[GUARDIAN] Connected to Global Cloud Hub!");
+
+      // Confirm firmware validity now that server connection is established
+      esp_ota_mark_app_valid_cancel_rollback();
+
+      // Persist working server connection to NVS
+      prefs.putString("server_host", host);
+      prefs.putUShort("server_port", port);
+
       sendTelemetry();
     } else if (type == WStype_DISCONNECTED) {
       connected = false;
+      failedConnects++;
       Serial.println("[GUARDIAN] Disconnected from Global Cloud Hub");
     } else if (type == WStype_TEXT) {
       handleCommand(String((char*)payload));
@@ -100,6 +160,7 @@ private:
     doc["firmware_ver"] = GUARDIAN_FIRMWARE_VER;
     doc["free_heap"] = ESP.getFreeHeap();
     doc["wifi_rssi"] = WiFi.RSSI();
+    doc["wifi_ssid"] = WiFi.SSID();
     doc["ip"] = WiFi.localIP().toString();
     String out;
     serializeJson(doc, out);

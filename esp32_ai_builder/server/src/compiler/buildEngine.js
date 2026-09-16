@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const config = require('../config');
 const { runCli } = require('./cliRunner');
-const { syncLibraries } = require('./libraryManager');
+const { syncLibraries, detectRequiredLibraries } = require('./libraryManager');
 const { injectGuardian } = require('./codeInjector');
 const { callGemini } = require('../ai/geminiClient');
 const { CODE_HEALING_PROMPT } = require('../ai/promptTemplates');
@@ -18,16 +19,20 @@ async function compileProject(sketchCode, options = {}) {
   const buildDir = path.join(config.workspaceDir, deviceId);
   if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true });
 
-  // 1. Sync libraries (only when libraries are requested)
-  if (requiredLibs && requiredLibs.length > 0) {
-    onLog('[BUILD] Synchronizing libraries...');
-    const libReport = await syncLibraries(requiredLibs, autoPrune);
-    if (libReport.installed.length) onLog(`[BUILD] Installed: ${libReport.installed.join(', ')}`);
-    if (libReport.removed.length) onLog(`[BUILD] Pruned unused: ${libReport.removed.join(', ')}`);
+  // 1. Auto-detect required libraries from sketch headers and synchronize
+  const detectedLibs = detectRequiredLibraries(sketchCode);
+  const allRequiredLibs = Array.from(new Set([...(requiredLibs || []), ...detectedLibs]));
+
+  if (allRequiredLibs.length > 0 || autoPrune) {
+    onLog(`[BUILD] Checking libraries (Required: ${allRequiredLibs.length ? allRequiredLibs.join(', ') : 'none'}, Auto-prune: ${autoPrune})...`);
+    const libReport = await syncLibraries(allRequiredLibs, autoPrune);
+    if (libReport.installed.length) onLog(`[BUILD] Auto-installed libraries: ${libReport.installed.join(', ')}`);
+    if (libReport.removed.length) onLog(`[BUILD] Auto-pruned unused libraries: ${libReport.removed.join(', ')}`);
   }
 
-  // 2. Inject Guardian background agent
+  // 2. Inject Guardian background agent with real network configuration
   const finalCode = injectGuardian(sketchCode, options);
+  onLog(`[BUILD] Injected Immortal Guardian agent (Host: ${options.serverHost || 'LAN/Host'}, Port: ${options.serverPort || 3000}, Device: ${deviceId})...`);
   const sketchPath = path.join(buildDir, `${deviceId}.ino`);
   fs.writeFileSync(sketchPath, finalCode, 'utf8');
 
@@ -61,12 +66,13 @@ async function compileProject(sketchCode, options = {}) {
   }
   if (!fs.existsSync(buildCacheDir)) fs.mkdirSync(buildCacheDir, { recursive: true });
 
+  const cpuJobs = String(Math.min(4, Math.max(2, os.cpus()?.length || 2)));
   const buildArgs = [
     'compile',
     '--fqbn', fqbn,
     '--output-dir', outBinDir,
     '--build-path', buildCacheDir,
-    '--jobs', '1',
+    '--jobs', cpuJobs,
     buildDir
   ];
 

@@ -408,16 +408,23 @@ void loop() {
   // 12. Deploy OTA Button
   document.getElementById('deployBtn').onclick = async () => {
     const sketchCode = editor.getValue();
-    log(`[DEPLOY] Starting build & OTA deployment...`);
+    const pruneBox = document.getElementById('autoPruneCheckbox');
+    const autoPrune = pruneBox ? pruneBox.checked : true;
+
+    log(`[DEPLOY] Starting build & OTA deployment (Auto-prune: ${autoPrune})...`);
     try {
       const res = await API.deployProject({
         sketchCode,
-        requiredLibraries: [],
+        requiredLibraries: activeLibraries?.map(l => l.name) || [],
         deviceId: DEFAULT_DEVICE_ID,
-        autoPrune: true
+        autoPrune,
+        serverHost: (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? window.location.hostname : undefined,
+        serverPort: window.location.port ? parseInt(window.location.port, 10) : (window.location.protocol === 'https:' ? 443 : 80)
       });
       if (res.success) {
         log(`[DEPLOY SUCCESS] ${res.message}`);
+        // Refresh active libraries to reflect newly auto-installed or auto-pruned libraries
+        setTimeout(loadLibs, 1000);
       } else {
         log(`[DEPLOY FAILED] ${res.error}`);
       }

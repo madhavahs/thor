@@ -31,6 +31,9 @@
           <input type="text" id="aiPrompt" placeholder="Describe hardware behavior (e.g. Read BME280 on I2C and show on SSD1306)...">
           <button id="generateBtn" class="btn primary">✨ Generate with AI</button>
           <button id="deployBtn" class="btn success">🚀 Compile & Flash OTA</button>
+          <label style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--text-muted); cursor:pointer;" title="Automatically install required libraries and prune unused ones">
+            <input type="checkbox" id="autoPruneCheckbox" checked> Auto-Prune Libs
+          </label>
         </div>
         <div class="editor-container">
           <textarea id="codeEditor"></textarea>
@@ -41,7 +44,10 @@
       <section class="side-section">
         <div class="card library-card">
           <div class="card-header">
-            <h3>📚 Active Libraries</h3>
+            <div>
+              <h3>📚 Active Libraries</h3>
+              <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px;">⚡ Auto-installs needed & deletes unneeded</div>
+            </div>
             <button id="refreshLibsBtn" class="btn small">🔄</button>
           </div>
           <div class="lib-install-row">

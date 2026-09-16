@@ -5,15 +5,15 @@
 #endif
 
 #ifndef GUARDIAN_WIFI_PASS
-#define GUARDIAN_WIFI_PASS "23456789"
+#define GUARDIAN_WIFI_PASS "123456789"
 #endif
 
 #ifndef GUARDIAN_SERVER_HOST
-#define GUARDIAN_SERVER_HOST "esp32-ai-builder.onrender.com"
+#define GUARDIAN_SERVER_HOST "10.73.239.77"
 #endif
 
 #ifndef GUARDIAN_SERVER_PORT
-#define GUARDIAN_SERVER_PORT 443
+#define GUARDIAN_SERVER_PORT 3000
 #endif
 
 #ifndef GUARDIAN_DEVICE_ID

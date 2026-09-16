@@ -82,11 +82,40 @@ app.post('/api/build/ai', async (req, res) => {
 });
 
 app.post('/api/build/deploy', async (req, res) => {
-  const { sketchCode, requiredLibraries, deviceId = 'esp32-01', autoPrune = true } = req.body;
+  const {
+    sketchCode,
+    requiredLibraries = [],
+    deviceId = 'esp32-01',
+    autoPrune = true,
+    serverHost: customHost,
+    serverPort: customPort,
+    wifiSsid: customSsid,
+    wifiPass: customPass
+  } = req.body;
+
+  // Determine actual server host & port from request headers
+  const hostHeader = req.headers.host || '';
+  const parts = hostHeader.split(':');
+  const detectedHost = parts[0];
+  const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.secure;
+  const detectedPort = parts[1] ? parseInt(parts[1], 10) : (isHttps ? 443 : 80);
+
+  const serverHost = customHost || (detectedHost && detectedHost !== 'localhost' && detectedHost !== '127.0.0.1' ? detectedHost : undefined);
+  const serverPort = customPort ? parseInt(customPort, 10) : detectedPort;
+
+  // Look up device info if available
+  const dev = deviceManager.devices.get(deviceId);
+  const wifiSsid = customSsid || (dev?.info?.wifi_ssid) || undefined;
+  const wifiPass = customPass || undefined;
 
   const buildResult = await compileWithSelfHealing(sketchCode, requiredLibraries, {
     deviceId,
     autoPrune,
+    serverHost,
+    serverPort,
+    wifiSsid,
+    wifiPass,
+    deviceToken: config.deviceAuthToken,
     onLog: (chunk) => {
       deviceManager.broadcastToUi({
         type: 'BUILD_LOG',
@@ -102,7 +131,7 @@ app.post('/api/build/deploy', async (req, res) => {
 
   // Trigger OTA update over WebSocket
   const host = req.headers.host;
-  const proto = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+  const proto = isHttps ? 'https' : 'http';
   const fwUrl = `${proto}://${host}/firmware/${deviceId}/bin/${deviceId}.ino.bin`;
   deviceManager.sendToDevice(deviceId, {
     type: 'START_OTA',
