@@ -35,6 +35,12 @@ RUN cd server && npm install --omit=dev
 # Copy application source code
 COPY . .
 
+# Pre-warm compilation cache with ESP32 core & system libraries so builds complete in 3-5 seconds without hitting Render timeouts
+RUN mkdir -p /app/server/workspace/cache /tmp/warmup && \
+    printf "#include <WiFi.h>\n#include <Update.h>\n#include <WiFiClientSecure.h>\nvoid setup(){}\nvoid loop(){}\n" > /tmp/warmup/warmup.ino && \
+    arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /app/server/workspace/cache --jobs 0 /tmp/warmup && \
+    rm -rf /tmp/warmup
+
 # Set environment variables for production
 ENV PORT=3000
 ENV NODE_ENV=production

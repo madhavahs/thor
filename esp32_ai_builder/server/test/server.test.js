@@ -34,3 +34,40 @@ test('deviceManager handles telemetry and serial broadcasts', () => {
 
   deviceManager.unregisterUiClient(fakeUiClient);
 });
+
+test('deviceManager handles PIN_STATE and ALL_PINS_REPORT broadcasts and state tracking', () => {
+  let broadcastMsg = null;
+  const fakeUiClient = {
+    readyState: 1,
+    send: (msg) => { broadcastMsg = JSON.parse(msg); }
+  };
+  const fakeDevWs = {
+    readyState: 1,
+    send: () => {}
+  };
+
+  deviceManager.registerDevice('esp32-pin-test', fakeDevWs, {});
+  deviceManager.registerUiClient(fakeUiClient);
+
+  // 1. Single pin update
+  deviceManager.updatePinState('esp32-pin-test', 2, 'OUTPUT', 1);
+  assert.strictEqual(broadcastMsg.type, 'PIN_STATE');
+  assert.strictEqual(broadcastMsg.pin, 2);
+  assert.strictEqual(broadcastMsg.value, 1);
+
+  const dev = deviceManager.devices.get('esp32-pin-test');
+  assert.strictEqual(dev.pinStates[2].value, 1);
+
+  // 2. All pins report update
+  deviceManager.updateAllPinsReport('esp32-pin-test', {
+    digital: { "2": 1, "4": 0 },
+    analog: { "34": 2048 }
+  });
+  assert.strictEqual(broadcastMsg.type, 'ALL_PINS_REPORT');
+  assert.strictEqual(dev.pinStates.digital["2"], 1);
+  assert.strictEqual(dev.pinStates.analog["34"], 2048);
+
+  deviceManager.unregisterUiClient(fakeUiClient);
+  deviceManager.unregisterDevice('esp32-pin-test');
+});
+

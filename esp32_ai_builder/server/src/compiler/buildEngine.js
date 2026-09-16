@@ -18,11 +18,13 @@ async function compileProject(sketchCode, options = {}) {
   const buildDir = path.join(config.workspaceDir, deviceId);
   if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true });
 
-  // 1. Sync libraries
-  onLog('[BUILD] Synchronizing libraries...');
-  const libReport = await syncLibraries(requiredLibs, autoPrune);
-  if (libReport.installed.length) onLog(`[BUILD] Installed: ${libReport.installed.join(', ')}`);
-  if (libReport.removed.length) onLog(`[BUILD] Pruned unused: ${libReport.removed.join(', ')}`);
+  // 1. Sync libraries (only when libraries are requested)
+  if (requiredLibs && requiredLibs.length > 0) {
+    onLog('[BUILD] Synchronizing libraries...');
+    const libReport = await syncLibraries(requiredLibs, autoPrune);
+    if (libReport.installed.length) onLog(`[BUILD] Installed: ${libReport.installed.join(', ')}`);
+    if (libReport.removed.length) onLog(`[BUILD] Pruned unused: ${libReport.removed.join(', ')}`);
+  }
 
   // 2. Inject Guardian background agent
   const finalCode = injectGuardian(sketchCode, options);
@@ -47,12 +49,16 @@ async function compileProject(sketchCode, options = {}) {
   onLog('[BUILD] Invoking arduino-cli compile...');
   const fqbn = 'esp32:esp32:esp32';
   const outBinDir = path.join(buildDir, 'bin');
+  const buildCacheDir = path.join(config.workspaceDir, 'cache');
   if (!fs.existsSync(outBinDir)) fs.mkdirSync(outBinDir, { recursive: true });
+  if (!fs.existsSync(buildCacheDir)) fs.mkdirSync(buildCacheDir, { recursive: true });
 
   const buildArgs = [
     'compile',
     '--fqbn', fqbn,
     '--output-dir', outBinDir,
+    '--build-path', buildCacheDir,
+    '--jobs', '0',
     buildDir
   ];
 

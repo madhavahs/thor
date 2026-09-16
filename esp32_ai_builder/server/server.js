@@ -6,7 +6,7 @@ const cors = require('cors');
 const config = require('./src/config');
 const deviceManager = require('./src/tunnel/deviceManager');
 const { callGemini } = require('./src/ai/geminiClient');
-const { CODE_GENERATION_PROMPT } = require('./src/ai/promptTemplates');
+const { CODE_GENERATION_PROMPT, HARDWARE_CONTROL_PROMPT } = require('./src/ai/promptTemplates');
 const { compileWithSelfHealing } = require('./src/compiler/buildEngine');
 const { listInstalledLibraries, installLibrary, uninstallLibrary } = require('./src/compiler/libraryManager');
 
@@ -34,6 +34,10 @@ wss.on('connection', (ws, req) => {
           deviceManager.updateTelemetry(deviceId, parsed);
         } else if (parsed.type === 'SERIAL_LOG') {
           deviceManager.broadcastSerialLog(deviceId, parsed.payload);
+        } else if (parsed.type === 'PIN_STATE') {
+          deviceManager.updatePinState(deviceId, parsed.pin, parsed.mode, parsed.value);
+        } else if (parsed.type === 'ALL_PINS_REPORT') {
+          deviceManager.updateAllPinsReport(deviceId, parsed);
         }
       } catch (e) {}
     });
@@ -109,6 +113,83 @@ app.post('/api/build/deploy', async (req, res) => {
     message: 'Firmware compiled successfully. OTA dispatch sent to ESP32.',
     firmwareUrl: fwUrl
   });
+});
+
+// Hardware GPIO, Sensor, and Actuator Control APIs
+app.get('/api/device/:deviceId/pins', (req, res) => {
+  const { deviceId } = req.params;
+  const dev = deviceManager.devices.get(deviceId);
+  if (!dev) return res.status(404).json({ success: false, error: 'Device is offline or not registered' });
+  res.json({ success: true, pinStates: dev.pinStates || {} });
+});
+
+app.post('/api/device/:deviceId/pin', (req, res) => {
+  const { deviceId } = req.params;
+  const { action, pin, value = 0, mode = 'OUTPUT' } = req.body;
+  const pinNum = Number(pin);
+
+  if (isNaN(pinNum) || pinNum < 0 || pinNum > 39) {
+    return res.status(400).json({ success: false, error: 'Invalid GPIO pin number (0-39)' });
+  }
+
+  let cmd;
+  if (action === 'DIGITAL_WRITE') {
+    cmd = { type: 'DIGITAL_WRITE', pin: pinNum, value: value ? 1 : 0 };
+  } else if (action === 'PWM_WRITE') {
+    cmd = { type: 'PWM_WRITE', pin: pinNum, value: Math.min(255, Math.max(0, Number(value))) };
+  } else if (action === 'DIGITAL_READ') {
+    cmd = { type: 'DIGITAL_READ', pin: pinNum };
+  } else if (action === 'ANALOG_READ') {
+    cmd = { type: 'ANALOG_READ', pin: pinNum };
+  } else if (action === 'PIN_MODE') {
+    cmd = { type: 'PIN_MODE', pin: pinNum, mode };
+  } else {
+    return res.status(400).json({ success: false, error: 'Unsupported pin action' });
+  }
+
+  const sent = deviceManager.sendToDevice(deviceId, cmd);
+  if (!sent) {
+    return res.status(404).json({ success: false, error: 'ESP32 device is offline' });
+  }
+
+  res.json({ success: true, message: `Command dispatched: ${action} on GPIO ${pinNum}` });
+});
+
+app.post('/api/device/:deviceId/scan', (req, res) => {
+  const { deviceId } = req.params;
+  const sent = deviceManager.sendToDevice(deviceId, { type: 'SCAN_ALL_PINS' });
+  if (!sent) {
+    return res.status(404).json({ success: false, error: 'ESP32 device is offline' });
+  }
+  res.json({ success: true, message: 'Scan all pins requested from ESP32' });
+});
+
+app.post('/api/device/:deviceId/ai-command', async (req, res) => {
+  const { deviceId } = req.params;
+  const { command } = req.body;
+  if (!command) return res.status(400).json({ success: false, error: 'Command text is required' });
+
+  try {
+    const aiResp = await callGemini(HARDWARE_CONTROL_PROMPT, command);
+    const actions = aiResp.actions || [];
+    let sentCount = 0;
+
+    for (const act of actions) {
+      if (deviceManager.sendToDevice(deviceId, act)) {
+        sentCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      explanation: aiResp.explanation,
+      actions,
+      dispatched: sentCount,
+      online: deviceManager.devices.has(deviceId)
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 if (require.main === module) {

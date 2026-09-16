@@ -48,6 +48,39 @@ class DeviceManager {
     });
   }
 
+  updatePinState(deviceId, pin, mode, value) {
+    const dev = this.devices.get(deviceId);
+    if (dev) {
+      if (!dev.pinStates) dev.pinStates = {};
+      dev.pinStates[pin] = { mode, value, updatedAt: Date.now() };
+      dev.lastSeen = Date.now();
+    }
+    this.broadcastToUi({
+      type: 'PIN_STATE',
+      deviceId,
+      pin,
+      mode,
+      value
+    });
+  }
+
+  updateAllPinsReport(deviceId, data) {
+    const dev = this.devices.get(deviceId);
+    if (dev) {
+      dev.pinStates = {
+        digital: data.digital || {},
+        analog: data.analog || {},
+        updatedAt: Date.now()
+      };
+      dev.lastSeen = Date.now();
+    }
+    this.broadcastToUi({
+      type: 'ALL_PINS_REPORT',
+      deviceId,
+      data
+    });
+  }
+
   registerUiClient(ws) {
     this.uiClients.add(ws);
     // Send list of online devices

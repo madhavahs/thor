@@ -109,27 +109,147 @@ private:
       performOTA(fwUrl);
     } else if (cmdType == "RESTART") {
       ESP.restart();
+    } else if (cmdType == "PIN_MODE") {
+      int pin = doc["pin"] | -1;
+      String mode = doc["mode"] | "OUTPUT";
+      if (pin >= 0) {
+        if (mode == "INPUT") pinMode(pin, INPUT);
+        else if (mode == "INPUT_PULLUP") pinMode(pin, INPUT_PULLUP);
+        else if (mode == "INPUT_PULLDOWN") pinMode(pin, INPUT_PULLDOWN);
+        else pinMode(pin, OUTPUT);
+        sendPinState(pin, mode, digitalRead(pin));
+      }
+    } else if (cmdType == "DIGITAL_WRITE") {
+      int pin = doc["pin"] | -1;
+      int val = doc["value"] | 0;
+      if (pin >= 0) {
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, val ? HIGH : LOW);
+        sendPinState(pin, "OUTPUT", val ? 1 : 0);
+      }
+    } else if (cmdType == "PWM_WRITE" || cmdType == "ANALOG_WRITE") {
+      int pin = doc["pin"] | -1;
+      int val = doc["value"] | 0;
+      if (pin >= 0) {
+        analogWrite(pin, constrain(val, 0, 255));
+        sendPinState(pin, "PWM", val);
+      }
+    } else if (cmdType == "DIGITAL_READ") {
+      int pin = doc["pin"] | -1;
+      if (pin >= 0) {
+        int val = digitalRead(pin);
+        sendPinState(pin, "INPUT", val);
+      }
+    } else if (cmdType == "ANALOG_READ") {
+      int pin = doc["pin"] | -1;
+      if (pin >= 0) {
+        int val = analogRead(pin);
+        sendPinState(pin, "ANALOG", val);
+      }
+    } else if (cmdType == "SCAN_ALL_PINS") {
+      scanAllPins();
     }
+  }
+
+  void sendPinState(int pin, const String& mode, int value) {
+    JsonDocument doc;
+    doc["type"] = "PIN_STATE";
+    doc["device_id"] = GUARDIAN_DEVICE_ID;
+    doc["pin"] = pin;
+    doc["mode"] = mode;
+    doc["value"] = value;
+    String out;
+    serializeJson(doc, out);
+    wsClient.sendTXT(out);
+  }
+
+  void scanAllPins() {
+    JsonDocument doc;
+    doc["type"] = "ALL_PINS_REPORT";
+    doc["device_id"] = GUARDIAN_DEVICE_ID;
+    doc["uptime_ms"] = millis();
+
+    // Safe general-purpose GPIO pins
+    const int digPins[] = { 2, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33 };
+    JsonObject digObj = doc["digital"].to<JsonObject>();
+    for (int p : digPins) {
+      digObj[String(p)] = digitalRead(p);
+    }
+
+    // Safe ADC1 analog pins
+    const int adcPins[] = { 32, 33, 34, 35, 36, 39 };
+    JsonObject adcObj = doc["analog"].to<JsonObject>();
+    for (int p : adcPins) {
+      adcObj[String(p)] = analogRead(p);
+    }
+
+    String out;
+    serializeJson(doc, out);
+    wsClient.sendTXT(out);
   }
 
   void performOTA(const String& url) {
     Serial.println("[GUARDIAN] Commencing OTA download from: " + url);
+    logRemote("[OTA] Starting high-speed OTA download...");
     WiFiClientSecure secClient;
     secClient.setInsecure();
     HTTPClient http;
-    if (!http.begin(secClient, url)) return;
+    http.setTimeout(15000);
+    if (!http.begin(secClient, url)) {
+      Serial.println("[GUARDIAN] HTTP connect failed");
+      logRemote("[OTA] Error: HTTP connect failed");
+      return;
+    }
     int code = http.GET();
-    if (code != HTTP_CODE_OK) { http.end(); return; }
-    int size = http.getSize();
-    if (!Update.begin(size)) { http.end(); return; }
+    if (code != HTTP_CODE_OK) {
+      Serial.printf("[GUARDIAN] HTTP GET failed (%d)\n", code);
+      logRemote("[OTA] HTTP GET error: " + String(code));
+      http.end();
+      return;
+    }
+    int totalSize = http.getSize();
+    if (totalSize <= 0) {
+      Serial.println("[GUARDIAN] Invalid firmware size");
+      logRemote("[OTA] Error: Invalid firmware size");
+      http.end();
+      return;
+    }
+    if (!Update.begin(totalSize, U_FLASH)) {
+      Serial.println("[GUARDIAN] Not enough space for OTA");
+      logRemote("[OTA] Error: Not enough flash space");
+      http.end();
+      return;
+    }
     WiFiClient* stream = http.getStreamPtr();
-    size_t written = Update.writeStream(*stream);
-    if (written == (size_t)size && Update.end(true)) {
+    uint8_t buff[4096];
+    int bytesWritten = 0;
+    int lastPercent = -1;
+
+    while (http.connected() && (bytesWritten < totalSize)) {
+      size_t avail = stream->available();
+      if (avail) {
+        int readBytes = stream->readBytes(buff, ((avail > sizeof(buff)) ? sizeof(buff) : avail));
+        Update.write(buff, readBytes);
+        bytesWritten += readBytes;
+
+        int percent = (bytesWritten * 100) / totalSize;
+        if (percent % 20 == 0 && percent != lastPercent) {
+          lastPercent = percent;
+          Serial.printf("[GUARDIAN] OTA Flashing: %d%%\n", percent);
+          logRemote("[OTA] Flashing: " + String(percent) + "%");
+        }
+      }
+      vTaskDelay(1);
+    }
+
+    if (bytesWritten == totalSize && Update.end(true)) {
       Serial.println("[GUARDIAN] OTA Complete! Rebooting into new firmware...");
+      logRemote("[OTA] Flash 100% Complete! Rebooting...");
       vTaskDelay(pdMS_TO_TICKS(500));
       ESP.restart();
     } else {
       Serial.println("[GUARDIAN] OTA update failed.");
+      logRemote("[OTA] Error: OTA verification failed");
       Update.abort();
     }
     http.end();

@@ -11,11 +11,20 @@
 <body>
   <div class="app-layout">
     <header class="app-header">
-      <div class="logo">⚡ ESP32 AI FORGE</div>
-      <div class="device-badge" id="deviceStatus">Connecting to Cloud Hub...</div>
+      <div class="header-left">
+        <div class="logo">⚡ ESP32 AI FORGE</div>
+        <nav class="nav-tabs">
+          <button id="tabForgeBtn" class="tab-btn active">💻 AI Firmware Forge</button>
+          <button id="tabGpioBtn" class="tab-btn">🎛️ Live GPIO & Sensors</button>
+        </nav>
+      </div>
+      <div class="header-right">
+        <div class="device-badge" id="deviceStatus">Connecting to Cloud Hub...</div>
+      </div>
     </header>
 
-    <div class="main-content">
+    <!-- TAB 1: AI Firmware Forge & Remote Serial -->
+    <div id="forgeTabContent" class="tab-content active main-content">
       <!-- Left Panel: AI Studio & Editor -->
       <section class="editor-section">
         <div class="ai-prompt-box">
@@ -50,6 +59,62 @@
           <pre id="consoleOutput" class="console-box"></pre>
         </div>
       </section>
+    </div>
+
+    <!-- TAB 2: Live GPIO, Sensors & AI Hardware Controller -->
+    <div id="gpioTabContent" class="tab-content gpio-dashboard-content">
+      <!-- AI Hardware Command Bar -->
+      <div class="ai-hardware-bar">
+        <div class="ai-input-wrap">
+          <span class="ai-sparkle">🤖</span>
+          <input type="text" id="aiHwCommandInput" placeholder="Ask AI to command hardware or read sensors (e.g. 'Turn on pin 2 LED and set pin 4 PWM to 180', 'Read all analog sensors')...">
+          <button id="sendAiHwBtn" class="btn primary">⚡ Execute AI Command</button>
+        </div>
+        <div id="aiHwFeedback" class="ai-feedback-box hidden"></div>
+      </div>
+
+      <!-- Master Toolbar & Telemetry -->
+      <div class="gpio-master-toolbar">
+        <div class="master-actions">
+          <button id="scanAllPinsBtn" class="btn primary highlight">⚡ Scan All Sensors & Actuators</button>
+          <button id="emergencyStopBtn" class="btn danger">🛑 Emergency Stop (All LOW)</button>
+        </div>
+        <div class="telemetry-pill-row">
+          <span class="tele-pill" id="teleWifi">📶 RSSI: --</span>
+          <span class="tele-pill" id="teleHeap">💾 Heap: --</span>
+          <span class="tele-pill" id="teleUptime">⏱️ Uptime: --</span>
+          <span class="tele-pill" id="teleLastScan">🕒 Last Scan: Never</span>
+        </div>
+      </div>
+
+      <!-- Two-column grid: Actuators (Left) & Sensors + Log (Right) -->
+      <div class="gpio-sections-grid">
+        <!-- Actuators & Digital Pins -->
+        <section class="gpio-card actuators-card">
+          <div class="section-title-row">
+            <h3>⚡ Actuators & Digital Outputs / Inputs</h3>
+            <span class="sub-label">Click toggle for HIGH/LOW or drag slider for PWM (0-255)</span>
+          </div>
+          <div id="digitalPinsGrid" class="pins-grid"></div>
+        </section>
+
+        <!-- Analog Sensors & Stream -->
+        <section class="gpio-card sensors-card">
+          <div class="section-title-row">
+            <h3>📊 Analog Sensors (ADC1)</h3>
+            <span class="sub-label">Wi-Fi safe 12-bit ADC (0 - 4095 / 0 - 3.3V)</span>
+          </div>
+          <div id="analogSensorsGrid" class="sensors-grid"></div>
+
+          <div class="hw-log-section">
+            <div class="card-header">
+              <h4>📡 Live Hardware Event Log</h4>
+              <button id="clearHwLogsBtn" class="btn small">Clear</button>
+            </div>
+            <div id="hwEventLog" class="hw-log-box"></div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 

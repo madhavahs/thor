@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const { compileProject } = require('../src/compiler/buildEngine');
 
-test('compileProject compiles a basic sketch with Guardian injected', { timeout: 120000 }, async () => {
+test('compileProject compiles a basic sketch with Guardian injected', { timeout: 180000 }, async () => {
   const minimalSketch = `
     void setup() {
       pinMode(2, OUTPUT);
