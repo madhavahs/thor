@@ -165,6 +165,30 @@ In [`firmware/ESP32_Guardian_Firmware/GuardianConfig.h`](file:///D:/antigravity/
 
 Upload [`ESP32_Guardian_Firmware.ino`](file:///D:/antigravity/Project1/esp32_ai_builder/firmware/ESP32_Guardian_Firmware/ESP32_Guardian_Firmware.ino) to your ESP32 via USB.
 
+> [!NOTE]
+> **Automatic WS/WSS Transport Switch**:
+> The firmware automatically inspects `GUARDIAN_SERVER_PORT`. Port `3000` (LAN) connects using plain WebSocket (`ws://`), while port `443` (Cloudflare Tunnel) connects using secure TLS (`wss://`). No manual code edits required!
+
+---
+
+## 🔄 How to Update the Server (After Git Commits)
+
+Whenever new features or bug fixes are published, updating your Raspberry Pi takes just one command:
+
+### 1-Click Update:
+```bash
+cd ~/esp32-ai-builder
+bash raspberry_pi/update.sh
+```
+
+### Manual Terminal Update:
+```bash
+cd ~/esp32-ai-builder
+git pull origin main
+cd server && npm install --production
+sudo systemctl restart esp32-forge.service
+```
+
 ---
 
 ## 🎛️ Features Available on Your Raspberry Pi Hub
@@ -174,3 +198,14 @@ Upload [`ESP32_Guardian_Firmware.ino`](file:///D:/antigravity/Project1/esp32_ai_
 3. **📊 Real-time ADC Sensor Gauges**: Live 12-bit ADC reads (0–4095) with voltage calculation (0.00V–3.30V) for GPIO 32, 33, 34, 35, 36, 39.
 4. **⚡ One-Click Master Scan (`SCAN_ALL_PINS`)**: Query every pin and sensor simultaneously with a single button.
 5. **🤖 AI Hardware Commander**: Tell AI *"Turn on LED on pin 2 and read temperature sensor on pin 34"* to command hardware in real time!
+
+---
+
+## 🛠️ Quick Troubleshooting
+
+- **ESP32 loops `Disconnected from Global Cloud Hub`**:
+  Make sure you ran the update script (`bash raspberry_pi/update.sh`) and re-flashed the ESP32. In `GuardianConfig.h`, ensure `GUARDIAN_SERVER_PORT` is set to `3000` for local network IP, or `443` for Cloudflare Tunnel.
+- **Check Server Logs**:
+  `sudo journalctl -u esp32-forge.service -f`
+- **Restart Server Service**:
+  `sudo systemctl restart esp32-forge.service`

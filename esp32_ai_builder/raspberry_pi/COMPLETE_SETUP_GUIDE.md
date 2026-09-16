@@ -18,7 +18,8 @@ This guide covers **every single step from scratch**: from unboxing your Raspber
 9. [Phase 8: Worldwide Public HTTPS/WSS Access (Cloudflare Tunnel)](#phase-8-worldwide-public-httpswss-access-cloudflare-tunnel)
 10. [Phase 9: Configuring & Flashing the ESP32](#phase-9-configuring--flashing-the-esp32)
 11. [Phase 10: Using the Web Studio (AI, GPIOs, Sensors & OTA)](#phase-10-using-the-web-studio-ai-gpios-sensors--ota)
-12. [Troubleshooting & Handy Commands](#troubleshooting--handy-commands)
+12. [Phase 11: Updating the Server (Git Pull & 1-Click Update)](#phase-11-updating-the-server-git-pull--1-click-update)
+13. [Troubleshooting & Handy Commands](#troubleshooting--handy-commands)
 
 ---
 
@@ -289,7 +290,73 @@ Now configure your ESP32 so it connects to your Raspberry Pi.
 
 ---
 
+## Phase 11: Updating the Server (Git Pull & 1-Click Update)
+
+Whenever new features, bug fixes, or improvements are pushed to the GitHub repository, you can update your Raspberry Pi server without losing your `.env` configuration or re-installing Arduino packages.
+
+### Method A: 1-Click Update Script (Recommended)
+
+Run the included update script directly on your Raspberry Pi:
+
+```bash
+cd ~/esp32-ai-builder
+bash raspberry_pi/update.sh
+```
+
+**What this script does automatically:**
+1. Runs `git pull origin main` to fetch the latest code.
+2. Runs `npm install --production` to update any server packages.
+3. Restarts the `esp32-forge.service` background service automatically.
+4. Shows the latest commit log confirming success.
+
+*(Note: If you cloned the monorepo `thor`, run: `cd ~/thor && git pull origin main && bash esp32_ai_builder/raspberry_pi/update.sh`)*.
+
+---
+
+### Method B: Step-by-Step Manual Update
+
+If you prefer to update manually via terminal:
+
+```bash
+# 1. Navigate to the project folder
+cd ~/esp32-ai-builder
+
+# 2. Pull latest changes from GitHub
+git pull origin main
+
+# 3. Update Node.js dependencies
+cd server
+npm install --production
+
+# 4. Restart the background service (or start.sh if running in foreground)
+sudo systemctl restart esp32-forge.service
+```
+
+Verify the update with:
+```bash
+git log -1 --oneline
+sudo systemctl status esp32-forge.service
+```
+
+---
+
 ## Troubleshooting & Handy Commands
+
+### ESP32 Serial Monitor: `[GUARDIAN] Disconnected from Global Cloud Hub`
+If your Serial Monitor repeatedly prints `Disconnected from Global Cloud Hub` every 3 seconds:
+- **Cause**: Port & SSL Mismatch. Calling secure SSL (`wss://`) on a plain Node.js port (`3000`), or vice-versa.
+- **Fix**:
+  1. Make sure you updated the code on your Pi (`bash raspberry_pi/update.sh`).
+  2. For **local network access** (IP address like `10.73.239.77` or `192.168.1.50`), ensure `GuardianConfig.h` has:
+     ```cpp
+     #define GUARDIAN_SERVER_PORT 3000
+     ```
+     *(The firmware will automatically connect via plain WebSocket without SSL handshake failure).*
+  3. For **worldwide Cloudflare Tunnel access** (`*.trycloudflare.com`), set:
+     ```cpp
+     #define GUARDIAN_SERVER_PORT 443
+     ```
+  4. Re-upload [`ESP32_Guardian_Firmware.ino`](file:///D:/antigravity/Project1/esp32_ai_builder/firmware/ESP32_Guardian_Firmware/ESP32_Guardian_Firmware.ino) to the ESP32.
 
 ### Checking Service Logs on Raspberry Pi:
 ```bash
@@ -305,10 +372,8 @@ sudo systemctl restart esp32-forge.service
 Open Serial Monitor at **115200 baud** in Arduino IDE:
 - You should see:
   ```text
-  [BOOT] Starting ESP32 AI Dynamic Runtime Factory Image...
-  [GUARDIAN] Connecting to Wi-Fi...
-  [GUARDIAN] Wi-Fi Connected! IP: 192.168.1.105
-  [GUARDIAN] Connecting to Cloud Hub: ws://192.168.1.50:3000/ws/device
+  [GUARDIAN] WiFi Connected. IP: 10.73.239.105
+  [GUARDIAN] Connecting via plain WebSocket (WS port 3000)...
   [GUARDIAN] Connected to Global Cloud Hub!
   ```
 
