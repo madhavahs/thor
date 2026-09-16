@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Worldwide AI Forge</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/nord.min.css">
+</head>
+<body>
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="logo">⚡ ESP32 AI FORGE</div>
+      <div class="device-badge" id="deviceStatus">Connecting to Cloud Hub...</div>
+    </header>
+
+    <div class="main-content">
+      <!-- Left Panel: AI Studio & Editor -->
+      <section class="editor-section">
+        <div class="ai-prompt-box">
+          <input type="text" id="aiPrompt" placeholder="Describe hardware behavior (e.g. Read BME280 on I2C and show on SSD1306)...">
+          <button id="generateBtn" class="btn primary">✨ Generate with AI</button>
+          <button id="deployBtn" class="btn success">🚀 Compile & Flash OTA</button>
+        </div>
+        <div class="editor-container">
+          <textarea id="codeEditor"></textarea>
+        </div>
+      </section>
+
+      <!-- Right Panel: Libraries & Console -->
+      <section class="side-section">
+        <div class="card library-card">
+          <div class="card-header">
+            <h3>📚 Active Libraries</h3>
+            <button id="refreshLibsBtn" class="btn small">🔄</button>
+          </div>
+          <div class="lib-install-row">
+            <input type="text" id="newLibInput" placeholder="Install library name...">
+            <button id="installLibBtn" class="btn small primary">+ Add</button>
+          </div>
+          <ul id="libraryList" class="library-list"></ul>
+        </div>
+
+        <div class="card console-card">
+          <div class="card-header">
+            <h3>🖥️ Live Build & Remote Serial</h3>
+            <button id="clearLogsBtn" class="btn small">Clear</button>
+          </div>
+          <pre id="consoleOutput" class="console-box"></pre>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
