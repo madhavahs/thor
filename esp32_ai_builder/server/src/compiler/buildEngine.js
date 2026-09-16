@@ -49,8 +49,16 @@ async function compileProject(sketchCode, options = {}) {
   onLog('[BUILD] Invoking arduino-cli compile...');
   const fqbn = 'esp32:esp32:esp32';
   const outBinDir = path.join(buildDir, 'bin');
-  const buildCacheDir = path.join(config.workspaceDir, 'cache');
+  const buildCacheDir = path.join(buildDir, 'cache');
   if (!fs.existsSync(outBinDir)) fs.mkdirSync(outBinDir, { recursive: true });
+  
+  // Inherit pre-warmed cache from default device if available
+  const defaultCache = path.join(config.workspaceDir, 'esp32-01', 'cache');
+  if (deviceId !== 'esp32-01' && !fs.existsSync(buildCacheDir) && fs.existsSync(defaultCache)) {
+    try {
+      fs.cpSync(defaultCache, buildCacheDir, { recursive: true });
+    } catch (e) {}
+  }
   if (!fs.existsSync(buildCacheDir)) fs.mkdirSync(buildCacheDir, { recursive: true });
 
   const buildArgs = [
@@ -58,7 +66,7 @@ async function compileProject(sketchCode, options = {}) {
     '--fqbn', fqbn,
     '--output-dir', outBinDir,
     '--build-path', buildCacheDir,
-    '--jobs', '0',
+    '--jobs', '1',
     buildDir
   ];
 

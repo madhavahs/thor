@@ -35,11 +35,11 @@ RUN cd server && npm install --omit=dev
 # Copy application source code
 COPY . .
 
-# Pre-warm compilation cache with ESP32 core & system libraries so builds complete in 3-5 seconds without hitting Render timeouts
-RUN mkdir -p /app/server/workspace/cache /tmp/warmup && \
-    printf "#include <WiFi.h>\n#include <Update.h>\n#include <WiFiClientSecure.h>\nvoid setup(){}\nvoid loop(){}\n" > /tmp/warmup/warmup.ino && \
-    arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /app/server/workspace/cache --jobs 0 /tmp/warmup && \
-    rm -rf /tmp/warmup
+# Pre-warm compilation cache with ESP32 core & Guardian libraries for default device 'esp32-01'
+RUN mkdir -p /app/server/workspace/esp32-01/cache /app/server/workspace/esp32-01/bin && \
+    cp /app/firmware/include/* /app/server/workspace/esp32-01/ && \
+    printf "#include \"GuardianConfig.h\"\n#include \"GuardianAgent.h\"\nvoid setup(){}\nvoid loop(){}\n" > /app/server/workspace/esp32-01/esp32-01.ino && \
+    arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /app/server/workspace/esp32-01/cache --output-dir /app/server/workspace/esp32-01/bin --jobs 1 /app/server/workspace/esp32-01
 
 # Set environment variables for production
 ENV PORT=3000
@@ -49,5 +49,5 @@ ENV WORKSPACE_DIR=/app/server/workspace
 
 EXPOSE 3000
 
-# Start server
-CMD ["node", "server/server.js"]
+# Start server with 256MB Node heap limit so GCC has enough RAM
+CMD ["node", "--max-old-space-size=256", "server/server.js"]
