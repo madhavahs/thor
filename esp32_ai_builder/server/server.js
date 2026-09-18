@@ -1,6 +1,7 @@
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const cors = require('cors');
@@ -49,6 +50,19 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => deviceManager.unregisterUiClient(ws));
   }
 });
+
+// Helper to determine server LAN IP for local WiFi ESP32 connectivity
+function getLanIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
 
 // Helper for Service Discovery & Health Metadata
 function getServiceHealth() {
@@ -114,20 +128,24 @@ app.post('/command', async (req, res) => {
   if (sketchCode) {
     try {
       const hostHeader = req.headers.host || '';
+      const detectedHost = hostHeader.split(':')[0];
       const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.secure;
       const detectedPort = hostHeader.includes(':') ? parseInt(hostHeader.split(':')[1], 10) : (isHttps ? 443 : 80);
+      const targetHost = (detectedHost === 'localhost' || detectedHost === '127.0.0.1')
+        ? `${getLanIp()}:${detectedPort || config.port}`
+        : hostHeader;
       const buildResult = await compileWithSelfHealing(sketchCode, [], {
         deviceId,
         autoPrune: true,
-        serverHost: hostHeader.split(':')[0],
-        serverPort: detectedPort,
+        serverHost: targetHost.split(':')[0],
+        serverPort: detectedPort || config.port,
         deviceToken: config.deviceAuthToken
       });
       if (!buildResult.success) {
         return res.status(400).json({ success: false, error: buildResult.stderr || buildResult.stdout });
       }
       const proto = isHttps ? 'https' : 'http';
-      const fwUrl = `${proto}://${hostHeader}/device/${deviceId}/firmware`;
+      const fwUrl = `${proto}://${targetHost}/device/${deviceId}/firmware`;
       deviceManager.markFlashing(deviceId, 25000);
       deviceManager.sendToDevice(deviceId, { type: 'START_OTA', url: fwUrl });
       return res.json({
@@ -217,11 +235,23 @@ app.get('/api/device/:deviceId/manifest', handleDeviceManifest);
 // 4. Device Firmware Download Endpoint
 function handleDeviceFirmware(req, res) {
   const deviceId = req.params.device_id || req.params.deviceId;
-  const binPath = path.join(config.workspaceDir, deviceId, 'bin', `${deviceId}.ino.bin`);
+  const binDir = path.join(config.workspaceDir, deviceId, 'bin');
+  let binPath = path.join(binDir, `${deviceId}.ino.bin`);
+
+  if (!fs.existsSync(binPath) && fs.existsSync(binDir)) {
+    try {
+      const files = fs.readdirSync(binDir).filter(f => f.endsWith('.bin') && !f.includes('bootloader') && !f.includes('partitions'));
+      if (files.length > 0) {
+        binPath = path.join(binDir, files[0]);
+      }
+    } catch (e) {}
+  }
+
   if (fs.existsSync(binPath)) {
+    const stat = fs.statSync(binPath);
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${deviceId}.bin"`);
-    return res.sendFile(binPath);
+    res.setHeader('Content-Length', stat.size);
+    return res.sendFile(path.resolve(binPath));
   }
   res.status(404).json({ success: false, error: `No compiled firmware binary found for device ${deviceId}` });
 }
@@ -250,11 +280,21 @@ app.post('/api/libraries/uninstall', async (req, res) => {
 // AI Sketch Generation
 app.post('/api/build/ai', async (req, res) => {
   const { prompt } = req.body;
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ success: false, error: 'Project prompt description is required' });
+  }
   try {
-    const aiResp = await callGemini(CODE_GENERATION_PROMPT, prompt);
-    res.json({ success: true, project: aiResp });
+    const aiResp = await callGemini(CODE_GENERATION_PROMPT, prompt.trim());
+    const project = {
+      project_name: aiResp.project_name || 'ESP32_AI_Project',
+      description: aiResp.description || '',
+      required_libraries: Array.isArray(aiResp.required_libraries) ? aiResp.required_libraries : [],
+      sketch_code: aiResp.sketch_code || aiResp.code || aiResp.sketch || (typeof aiResp === 'string' ? aiResp : '')
+    };
+    res.json({ success: true, project });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('[AI BUILD ERROR]', err);
+    res.status(500).json({ success: false, error: err.message || 'AI Generation failed' });
   }
 });
 
@@ -278,7 +318,12 @@ app.post('/api/build/deploy', async (req, res) => {
   const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.secure;
   const detectedPort = parts[1] ? parseInt(parts[1], 10) : (isHttps ? 443 : 80);
 
-  const serverHost = customHost || (detectedHost && detectedHost !== 'localhost' && detectedHost !== '127.0.0.1' ? detectedHost : undefined);
+  // If host is localhost or 127.0.0.1, use LAN IP so ESP32 can connect over local Wi-Fi
+  const targetHost = (detectedHost === 'localhost' || detectedHost === '127.0.0.1')
+    ? `${getLanIp()}:${detectedPort || config.port}`
+    : hostHeader;
+
+  const serverHost = customHost || (detectedHost && detectedHost !== 'localhost' && detectedHost !== '127.0.0.1' ? detectedHost : getLanIp());
   const serverPort = customPort ? parseInt(customPort, 10) : detectedPort;
 
   // Look up device info if available
@@ -308,9 +353,8 @@ app.post('/api/build/deploy', async (req, res) => {
   }
 
   // Trigger OTA update over WebSocket
-  const host = req.headers.host;
   const proto = isHttps ? 'https' : 'http';
-  const fwUrl = `${proto}://${host}/device/${deviceId}/firmware`;
+  const fwUrl = `${proto}://${targetHost}/device/${deviceId}/firmware`;
   deviceManager.markFlashing(deviceId, 25000);
   deviceManager.sendToDevice(deviceId, {
     type: 'START_OTA',

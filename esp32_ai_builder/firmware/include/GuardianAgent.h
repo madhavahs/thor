@@ -22,11 +22,11 @@ public:
   void begin() {
     bootTime = millis();
     Serial.println("[GUARDIAN] Initializing Immortal Guardian background task on Core 0...");
-    // Optimized FreeRTOS stack: 4096 bytes (halved from 8192, saves 4KB SRAM for user sketches)
+    // 8192 bytes stack required for TLS/mbedtls and OTA update stream processing
     xTaskCreatePinnedToCore(
       taskTrampoline,
       "GuardianTask",
-      4096,
+      8192,
       this,
       1,
       NULL,
@@ -70,7 +70,6 @@ private:
     }
     if (port == 0) port = GUARDIAN_SERVER_PORT;
 
-    WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), pass.c_str());
 
@@ -104,8 +103,7 @@ private:
     wsClient.onEvent([this, &prefs, host, port](WStype_t type, uint8_t* payload, size_t length) {
       this->handleWsEvent(type, payload, length, prefs, host, port);
     });
-    // Rapid reconnect: 500ms so reconnection after reboot happens near-instantly
-    wsClient.setReconnectInterval(500);
+    wsClient.setReconnectInterval(3000);
 
     for (;;) {
       wsClient.loop();
@@ -262,7 +260,9 @@ private:
     Serial.println("[GUARDIAN] Commencing OTA download from: " + url);
     logRemote("[OTA] Starting high-speed OTA download...");
     HTTPClient http;
-    http.setTimeout(15000);
+    http.setTimeout(20000);
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    http.setReuse(false);
 
     bool connectedHttp = false;
     WiFiClientSecure secClient;

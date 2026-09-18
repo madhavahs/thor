@@ -53,8 +53,50 @@ async function callGemini(systemPrompt, userPrompt) {
   }
 
   const data = await response.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  return JSON.parse(rawText);
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!rawText) {
+    throw new Error('Empty response received from Gemini API');
+  }
+
+  // 1. Direct JSON parse
+  try {
+    const parsed = JSON.parse(rawText);
+    parsed.sketch_code = parsed.sketch_code || parsed.code || parsed.sketch || '';
+    return parsed;
+  } catch (e) {}
+
+  // 2. Extract JSON from markdown fences (```json ... ```)
+  const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      parsed.sketch_code = parsed.sketch_code || parsed.code || parsed.sketch || '';
+      return parsed;
+    } catch (e) {}
+  }
+
+  // 3. Extract C++ sketch code from markdown code fences (```cpp ... ```)
+  const codeMatch = rawText.match(/```(?:cpp|c\+\+|arduino)?\s*([\s\S]*?)\s*```/i);
+  if (codeMatch) {
+    return {
+      project_name: 'ESP32_AI_Project',
+      description: 'AI Generated C++ Sketch',
+      required_libraries: [],
+      sketch_code: codeMatch[1].trim()
+    };
+  }
+
+  // 4. Raw C++ text fallback if model responded directly with code
+  if (rawText.includes('setup()') || rawText.includes('loop()') || rawText.includes('#include')) {
+    return {
+      project_name: 'ESP32_AI_Project',
+      description: 'AI Generated C++ Sketch',
+      required_libraries: [],
+      sketch_code: rawText.trim()
+    };
+  }
+
+  throw new Error(`Failed to parse AI response: ${rawText.slice(0, 150)}`);
 }
 
 module.exports = { callGemini };

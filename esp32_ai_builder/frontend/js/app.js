@@ -503,13 +503,19 @@ void loop() {
     try {
       const res = await API.generateAiProject(prompt, DEFAULT_DEVICE_ID);
       if (res.success && res.project) {
-        editor.setValue(res.project.sketch_code);
-        log(`[AI SUCCESS] Project: ${res.project.project_name}`);
-        if (res.project.required_libraries?.length) {
-          log(`[AI] Required libraries: ${res.project.required_libraries.join(', ')}`);
+        const code = res.project.sketch_code || res.project.code || res.project.sketch || (typeof res.project === 'string' ? res.project : '');
+        if (code) {
+          editor.setValue(code);
+          setTimeout(() => editor.refresh(), 50);
+          log(`[AI SUCCESS] Project: ${res.project.project_name || 'ESP32 Project'}`);
+          if (res.project.required_libraries?.length) {
+            log(`[AI] Required libraries: ${res.project.required_libraries.join(', ')}`);
+          }
+        } else {
+          log(`[AI ERROR] No sketch code was generated`);
         }
       } else {
-        log(`[AI ERROR] ${res.error}`);
+        log(`[AI ERROR] ${res.error || 'Failed to generate project'}`);
       }
     } catch (err) {
       log(`[AI ERROR] ${err.message}`);

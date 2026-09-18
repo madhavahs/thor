@@ -132,6 +132,18 @@ test('HTTP GET /health and /device/:device_id/manifest respond correctly', async
     const bodyCmd = await resCmd.json();
     assert.strictEqual(bodyCmd.type, 'action');
     assert.strictEqual(bodyCmd.action, 'DIGITAL_WRITE');
+
+    // 4. POST /api/build/ai prompt validation
+    const resAiInvalid = await fetch(`${baseUrl}/api/build/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: '' })
+    });
+    assert.strictEqual(resAiInvalid.status, 400);
+
+    // 5. GET /device/non-existent/firmware returns 404
+    const resFw404 = await fetch(`${baseUrl}/device/non-existent/firmware`);
+    assert.strictEqual(resFw404.status, 404);
   } finally {
     await new Promise((resolve) => testServer.close(resolve));
   }
