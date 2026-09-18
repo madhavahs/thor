@@ -27,19 +27,31 @@ Complete from-scratch implementation and deployment guide for self-hosting the *
 
 ---
 
-## 🚀 Quick Start (Automated 1-Click Setup)
+## 🚀 The 1-Click Master Setup Command (Do Everything in 1 Shot)
 
-### Step 1: Transfer the Folder to Your Raspberry Pi
-
-You can clone the repository directly on your Raspberry Pi:
+If you have SSH or terminal access to your Raspberry Pi, run this **single command** to automatically clone, install, pre-warm build caches, configure, and launch the 24/7 background service:
 
 ```bash
-cd ~
-git clone https://github.com/madhavahs/esp32-ai-builder.git
-cd esp32-ai-builder
+curl -fsSL https://raw.githubusercontent.com/madhavahs/thor/main/esp32_ai_builder/raspberry_pi/setup.sh | bash
 ```
 
-*(Alternatively, if copying from Windows via SCP or USB drive, copy the `esp32_ai_builder` folder to `~/esp32-ai-builder` on your Pi).*
+Or pass your Gemini API key in the command:
+```bash
+GEMINI_API_KEY="your_api_key_here" curl -fsSL https://raw.githubusercontent.com/madhavahs/thor/main/esp32_ai_builder/raspberry_pi/setup.sh | bash
+```
+
+---
+
+## 🛠️ Step-by-Step Installation (Alternative)
+
+If you prefer to run each step manually:
+
+### Step 1: Clone the Repository on Your Raspberry Pi
+```bash
+cd ~
+git clone https://github.com/madhavahs/thor.git
+cd thor/esp32_ai_builder
+```
 
 ---
 

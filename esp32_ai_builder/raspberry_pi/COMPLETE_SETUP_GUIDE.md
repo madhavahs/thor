@@ -5,6 +5,30 @@ This guide covers **every single step from scratch**: from unboxing your Raspber
 
 ---
 
+## ⚡ The Ultimate 1-Click Setup Command (Copy & Paste)
+
+If you have SSH access to your Raspberry Pi, run this **single command** to install and configure everything from start to finish:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/madhavahs/thor/main/esp32_ai_builder/raspberry_pi/setup.sh | bash
+```
+
+Or pass your Gemini API key directly:
+```bash
+GEMINI_API_KEY="your_api_key_here" curl -fsSL https://raw.githubusercontent.com/madhavahs/thor/main/esp32_ai_builder/raspberry_pi/setup.sh | bash
+```
+
+**What this one command does automatically:**
+1. Clones the repository to `~/esp32-ai-forge`.
+2. Installs Node.js 20 LTS, `arduino-cli` ARM64, and system build tools.
+3. Installs ESP32 Core 3.1.1 and libraries (`WebSockets`, `ArduinoJson`).
+4. Pre-warms the ESP32 compilation cache with space optimization (`-Os`) for instant 3-second builds.
+5. Configures your Google Gemini API key in `server/.env`.
+6. Installs and starts the 24/7 systemd background service (`esp32-forge.service`) so it starts automatically on boot.
+7. Displays your local Web Studio URL (e.g. `http://<PI_IP>:3000`).
+
+---
+
 ## 📑 Table of Contents
 1. [Prerequisites & Hardware Needed](#1-prerequisites--hardware-needed)
 2. [Phase 1: First-Time Raspberry Pi Boot & Wi-Fi Setup](#phase-1-first-time-raspberry-pi-boot--wi-fi-setup)

@@ -70,10 +70,11 @@ void setup() {}
 void loop() { vTaskDelay(pdMS_TO_TICKS(100)); }
 EOF
 
-# Multi-core compile using 2 jobs for optimal Pi 4 performance
+# Multi-core compile using 2 jobs for optimal Pi 4 performance with space optimization
 $BIN_DIR/arduino-cli compile --fqbn esp32:esp32:esp32 \
     --build-path "$SERVER_DIR/workspace/esp32-01/cache" \
     --output-dir "$SERVER_DIR/workspace/esp32-01/bin" \
+    --build-property compiler.optimization_flags="-Os -DCORE_DEBUG_LEVEL=0 -ffunction-sections -fdata-sections -Wl,--gc-sections" \
     --jobs 2 "$SERVER_DIR/workspace/esp32-01"
 
 echo ""
