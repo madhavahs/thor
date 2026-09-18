@@ -259,3 +259,29 @@ bash setup_cloudflare_tunnel.sh
 ```
 *(Option 1: Generates instant free `https://*.trycloudflare.com` URL).*
 
+---
+
+## 9. Minimalist Redesign, Mobile Parity, Code Hot-Swap & Render Auto-Deploy
+**Date:** September 18, 2026
+
+### A. Minimalist White, Green & Black UI
+* **Design Language:** Pure white (`#ffffff`) surfaces, emerald green (`#059669`) action highlights, and off-black (`#0f172a`) typography.
+* **Universal Custom Scrollbars:** Sleek 6px emerald-thumb custom scrollbars active across all panels, code editor, libraries list, terminal console, and GPIO matrix.
+* **Full Mobile Responsiveness:** Breakpoints for `< 960px` and `< 640px` with a mobile sub-tab switcher (`[💻 C++ Editor] [📚 Libraries] [🖥️ Terminal Logs]`) and touch targets >= 44px.
+
+### B. Clean Code Hot-Swap Without Web Disconnection
+* **Stale Code Purge:** `buildEngine.js` purges old sketch code and leftover binaries before writing new sketches so legacy symbols never linger.
+* **Sanitized Code Injection:** `codeInjector.js` removes any previously injected Guardian macros or headers before re-injecting.
+* **Continuous WebSocket Loop:** `GuardianAgent.h` services `wsClient.loop()` during the entire OTA download loop to prevent timeouts.
+* **Fast 500ms Reconnection & Grace Period:** Reconnect interval reduced from 3000ms to 500ms; `deviceManager.js` and `app.js` hold a 25s hot-swap grace period so the dashboard smoothly transitions into the new code without dropping to "Offline".
+
+### C. ESP32 Space Optimization (Flash & RAM)
+* **Flash Size Reduction:** Compiles with `--build-property compiler.optimization_flags="-Os -DCORE_DEBUG_LEVEL=0 -ffunction-sections -fdata-sections -Wl,--gc-sections"` to eliminate debug strings and unused sections, saving 200–300 KB.
+* **RAM / SRAM Savings:** Reduced FreeRTOS `GuardianTask` stack from 8192 to 4096 bytes, freeing 4 KB of SRAM for user applications.
+* **Dynamic OTA Buffer:** Replaced stack buffer with dynamic 2048-byte heap buffer in `performOTA()`.
+
+### D. Git Push Workflow & Automatic Continuous Deployment to Render.com
+* **Root Blueprint (`render.yaml`):** Added root `render.yaml` with `autoDeploy: true`, pointing directly to `esp32_ai_builder/Dockerfile` and `esp32_ai_builder` root.
+* **Push-to-Deploy:** Every `git push origin main` triggers an automatic Docker build on Render, updates cloud containers, and serves the platform worldwide with zero manual intervention.
+
+

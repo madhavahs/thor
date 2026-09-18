@@ -39,7 +39,7 @@ COPY . .
 RUN mkdir -p /app/server/workspace/esp32-01/cache /app/server/workspace/esp32-01/bin && \
     cp /app/firmware/include/* /app/server/workspace/esp32-01/ && \
     printf "#include \"GuardianConfig.h\"\n#include \"GuardianAgent.h\"\nvoid setup(){}\nvoid loop(){}\n" > /app/server/workspace/esp32-01/esp32-01.ino && \
-    arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /app/server/workspace/esp32-01/cache --output-dir /app/server/workspace/esp32-01/bin --jobs 1 /app/server/workspace/esp32-01
+    arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /app/server/workspace/esp32-01/cache --output-dir /app/server/workspace/esp32-01/bin --jobs 1 --build-property compiler.optimization_flags="-Os -DCORE_DEBUG_LEVEL=0 -ffunction-sections -fdata-sections -Wl,--gc-sections" /app/server/workspace/esp32-01
 
 # Set environment variables for production
 ENV PORT=3000
