@@ -94,9 +94,12 @@ void loop() {
   const libraryCard = document.getElementById('libraryCard');
   const consoleCard = document.getElementById('consoleCard');
 
+  const sideSection = document.getElementById('sideSection');
+
   function updateMobileForgeView(view) {
     if (window.innerWidth > 960) {
       editorSection.style.display = '';
+      sideSection.style.display = '';
       libraryCard.style.display = '';
       consoleCard.style.display = '';
       return;
@@ -107,6 +110,7 @@ void loop() {
       mobileNavLibsBtn?.classList.remove('active');
       mobileNavConsoleBtn?.classList.remove('active');
       editorSection.style.display = 'flex';
+      sideSection.style.display = 'none';
       libraryCard.style.display = 'none';
       consoleCard.style.display = 'none';
       setTimeout(() => editor.refresh(), 50);
@@ -115,6 +119,7 @@ void loop() {
       mobileNavEditorBtn?.classList.remove('active');
       mobileNavConsoleBtn?.classList.remove('active');
       editorSection.style.display = 'none';
+      sideSection.style.display = 'flex';
       libraryCard.style.display = 'flex';
       consoleCard.style.display = 'none';
     } else if (view === 'console') {
@@ -122,6 +127,7 @@ void loop() {
       mobileNavEditorBtn?.classList.remove('active');
       mobileNavLibsBtn?.classList.remove('active');
       editorSection.style.display = 'none';
+      sideSection.style.display = 'flex';
       libraryCard.style.display = 'none';
       consoleCard.style.display = 'flex';
     }
