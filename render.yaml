@@ -9,13 +9,13 @@ services:
     autoDeploy: true
     envVars:
       - key: PORT
-        value: 3000
+        value: 10000
       - key: NODE_ENV
         value: production
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.0-flash
+        value: gemini-3.1-flash-lite
       - key: DEVICE_AUTH_TOKEN
         generateValue: true
       - key: ARDUINO_CLI_PATH

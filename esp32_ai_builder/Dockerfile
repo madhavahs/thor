@@ -42,12 +42,12 @@ RUN mkdir -p /app/server/workspace/esp32-01/cache /app/server/workspace/esp32-01
     arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /app/server/workspace/esp32-01/cache --output-dir /app/server/workspace/esp32-01/bin --jobs 1 --build-property compiler.optimization_flags="-Os -DCORE_DEBUG_LEVEL=0 -ffunction-sections -fdata-sections -Wl,--gc-sections" /app/server/workspace/esp32-01
 
 # Set environment variables for production
-ENV PORT=3000
+ENV PORT=10000
 ENV NODE_ENV=production
 ENV ARDUINO_CLI_PATH=/app/bin/arduino-cli
 ENV WORKSPACE_DIR=/app/server/workspace
 
-EXPOSE 3000
+EXPOSE 10000
 
 # Start server with 256MB Node heap limit so GCC has enough RAM
 CMD ["node", "--max-old-space-size=256", "server/server.js"]
