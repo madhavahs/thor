@@ -1,5 +1,6 @@
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const cors = require('cors');
@@ -49,11 +50,186 @@ wss.on('connection', (ws, req) => {
   }
 });
 
-// REST APIs
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: Date.now() });
+// Helper for Service Discovery & Health Metadata
+function getServiceHealth() {
+  return {
+    service: "ESP32 AI Auto Builder",
+    version: "1.1.0",
+    status: "online",
+    model: config.geminiModel || "gemini-3.1-flash-lite",
+    fqbn: "esp32:esp32:esp32",
+    port: 10000,
+    endpoints: {
+      health: "/health",
+      command: "POST /command",
+      manifest: "GET /device/{device_id}/manifest",
+      firmware: "GET /device/{device_id}/firmware"
+    }
+  };
+}
+
+// 1. Health & Discovery Endpoints
+app.get('/health', (req, res) => res.json(getServiceHealth()));
+app.get('/api/health', (req, res) => res.json(getServiceHealth()));
+
+// 2. Command Endpoint (Universal Natural Language, RPC & Build Commander)
+app.post('/command', async (req, res) => {
+  const {
+    command,
+    prompt,
+    device_id,
+    deviceId = device_id || 'esp32-01',
+    action,
+    pin,
+    value,
+    mode,
+    code,
+    sketchCode = code
+  } = req.body;
+
+  // Case A: Direct pin action dispatch
+  if (action) {
+    const pinNum = Number(pin);
+    let cmd;
+    if (action === 'DIGITAL_WRITE') cmd = { type: 'DIGITAL_WRITE', pin: pinNum, value: value ? 1 : 0 };
+    else if (action === 'PWM_WRITE') cmd = { type: 'PWM_WRITE', pin: pinNum, value: Math.min(255, Math.max(0, Number(value))) };
+    else if (action === 'DIGITAL_READ') cmd = { type: 'DIGITAL_READ', pin: pinNum };
+    else if (action === 'ANALOG_READ') cmd = { type: 'ANALOG_READ', pin: pinNum };
+    else if (action === 'PIN_MODE') cmd = { type: 'PIN_MODE', pin: pinNum, mode: mode || 'OUTPUT' };
+    else if (action === 'SCAN_ALL_PINS') cmd = { type: 'SCAN_ALL_PINS' };
+
+    if (cmd) {
+      const sent = deviceManager.sendToDevice(deviceId, cmd);
+      return res.json({
+        success: sent,
+        type: 'action',
+        action,
+        dispatched: sent,
+        message: sent ? `Dispatched ${action} to ${deviceId}` : `Device ${deviceId} is offline`
+      });
+    }
+  }
+
+  // Case B: Direct C++ sketch code deploy
+  if (sketchCode) {
+    try {
+      const hostHeader = req.headers.host || '';
+      const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.secure;
+      const detectedPort = hostHeader.includes(':') ? parseInt(hostHeader.split(':')[1], 10) : (isHttps ? 443 : 80);
+      const buildResult = await compileWithSelfHealing(sketchCode, [], {
+        deviceId,
+        autoPrune: true,
+        serverHost: hostHeader.split(':')[0],
+        serverPort: detectedPort,
+        deviceToken: config.deviceAuthToken
+      });
+      if (!buildResult.success) {
+        return res.status(400).json({ success: false, error: buildResult.stderr || buildResult.stdout });
+      }
+      const proto = isHttps ? 'https' : 'http';
+      const fwUrl = `${proto}://${hostHeader}/device/${deviceId}/firmware`;
+      deviceManager.markFlashing(deviceId, 25000);
+      deviceManager.sendToDevice(deviceId, { type: 'START_OTA', url: fwUrl });
+      return res.json({
+        success: true,
+        type: 'deploy',
+        firmware_url: fwUrl,
+        message: 'Firmware compiled and OTA update dispatched.'
+      });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  // Case C: Natural language instruction (Hardware command or sketch generation)
+  const cmdText = command || prompt;
+  if (cmdText) {
+    const isBuildPrompt = /build|sketch|compile|write code|program|code for|firmware/i.test(cmdText);
+    if (isBuildPrompt) {
+      try {
+        const aiResp = await callGemini(CODE_GENERATION_PROMPT, cmdText);
+        return res.json({ success: true, type: 'code_generated', project: aiResp });
+      } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+      }
+    } else {
+      try {
+        const aiResp = await callGemini(HARDWARE_CONTROL_PROMPT, cmdText);
+        const actions = aiResp.actions || [];
+        let sentCount = 0;
+        for (const act of actions) {
+          if (deviceManager.sendToDevice(deviceId, act)) sentCount++;
+        }
+        return res.json({
+          success: true,
+          type: 'hardware_command',
+          explanation: aiResp.explanation,
+          actions,
+          dispatched: sentCount,
+          online: deviceManager.devices.has(deviceId)
+        });
+      } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+      }
+    }
+  }
+
+  res.status(400).json({ success: false, error: 'Command text, action, or sketchCode is required' });
 });
 
+// 3. Device Manifest Endpoint
+function handleDeviceManifest(req, res) {
+  const deviceId = req.params.device_id || req.params.deviceId;
+  const dev = deviceManager.devices.get(deviceId);
+  const host = req.headers.host;
+  const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.secure;
+  const proto = isHttps ? 'https' : 'http';
+
+  const binPath = path.join(config.workspaceDir, deviceId, 'bin', `${deviceId}.ino.bin`);
+  const hasFirmware = fs.existsSync(binPath);
+  let firmwareSize = 0;
+  let firmwareModified = null;
+  if (hasFirmware) {
+    const stat = fs.statSync(binPath);
+    firmwareSize = stat.size;
+    firmwareModified = stat.mtime;
+  }
+
+  res.json({
+    service: "ESP32 AI Auto Builder",
+    version: "1.1.0",
+    device_id: deviceId,
+    status: dev ? (dev.ws && dev.ws.readyState === 1 ? "online" : "reconnecting") : "offline",
+    fqbn: "esp32:esp32:esp32",
+    firmware_url: `${proto}://${host}/device/${deviceId}/firmware`,
+    has_firmware: hasFirmware,
+    firmware_size_bytes: firmwareSize,
+    firmware_updated_at: firmwareModified,
+    pin_states: dev?.pinStates || {},
+    telemetry: dev?.info || {},
+    last_seen: dev?.lastSeen || null
+  });
+}
+
+app.get('/device/:device_id/manifest', handleDeviceManifest);
+app.get('/api/device/:deviceId/manifest', handleDeviceManifest);
+
+// 4. Device Firmware Download Endpoint
+function handleDeviceFirmware(req, res) {
+  const deviceId = req.params.device_id || req.params.deviceId;
+  const binPath = path.join(config.workspaceDir, deviceId, 'bin', `${deviceId}.ino.bin`);
+  if (fs.existsSync(binPath)) {
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${deviceId}.bin"`);
+    return res.sendFile(binPath);
+  }
+  res.status(404).json({ success: false, error: `No compiled firmware binary found for device ${deviceId}` });
+}
+
+app.get('/device/:device_id/firmware', handleDeviceFirmware);
+app.get('/api/device/:deviceId/firmware', handleDeviceFirmware);
+
+// Libraries Management
 app.get('/api/libraries', async (req, res) => {
   const libs = await listInstalledLibraries();
   res.json({ success: true, libraries: libs });
@@ -71,8 +247,9 @@ app.post('/api/libraries/uninstall', async (req, res) => {
   res.json(result);
 });
 
+// AI Sketch Generation
 app.post('/api/build/ai', async (req, res) => {
-  const { prompt, deviceId, autoPrune = true } = req.body;
+  const { prompt } = req.body;
   try {
     const aiResp = await callGemini(CODE_GENERATION_PROMPT, prompt);
     res.json({ success: true, project: aiResp });
@@ -81,6 +258,7 @@ app.post('/api/build/ai', async (req, res) => {
   }
 });
 
+// Compile & Deploy via Web Dashboard
 app.post('/api/build/deploy', async (req, res) => {
   const {
     sketchCode,
@@ -132,7 +310,7 @@ app.post('/api/build/deploy', async (req, res) => {
   // Trigger OTA update over WebSocket
   const host = req.headers.host;
   const proto = isHttps ? 'https' : 'http';
-  const fwUrl = `${proto}://${host}/firmware/${deviceId}/bin/${deviceId}.ino.bin`;
+  const fwUrl = `${proto}://${host}/device/${deviceId}/firmware`;
   deviceManager.markFlashing(deviceId, 25000);
   deviceManager.sendToDevice(deviceId, {
     type: 'START_OTA',
@@ -229,4 +407,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, server };
+module.exports = { app, server, getServiceHealth };

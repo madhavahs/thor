@@ -71,3 +71,69 @@ test('deviceManager handles PIN_STATE and ALL_PINS_REPORT broadcasts and state t
   deviceManager.unregisterDevice('esp32-pin-test');
 });
 
+test('getServiceHealth returns exact required schema', () => {
+  const { getServiceHealth } = require('../server');
+  const health = getServiceHealth();
+
+  assert.strictEqual(health.service, "ESP32 AI Auto Builder");
+  assert.strictEqual(health.version, "1.1.0");
+  assert.strictEqual(health.status, "online");
+  assert.strictEqual(health.model, "gemini-3.1-flash-lite");
+  assert.strictEqual(health.fqbn, "esp32:esp32:esp32");
+  assert.strictEqual(health.port, 10000);
+  assert.deepStrictEqual(health.endpoints, {
+    health: "/health",
+    command: "POST /command",
+    manifest: "GET /device/{device_id}/manifest",
+    firmware: "GET /device/{device_id}/firmware"
+  });
+});
+
+test('HTTP GET /health and /device/:device_id/manifest respond correctly', async () => {
+  const { app } = require('../server');
+  const http = require('http');
+
+  const testServer = http.createServer(app);
+  await new Promise((resolve) => testServer.listen(0, resolve));
+  const port = testServer.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1. GET /health
+    const resHealth = await fetch(`${baseUrl}/health`);
+    assert.strictEqual(resHealth.status, 200);
+    const bodyHealth = await resHealth.json();
+    assert.strictEqual(bodyHealth.service, "ESP32 AI Auto Builder");
+    assert.strictEqual(bodyHealth.version, "1.1.0");
+    assert.strictEqual(bodyHealth.model, "gemini-3.1-flash-lite");
+    assert.strictEqual(bodyHealth.port, 10000);
+
+    // 2. GET /device/test-dev/manifest
+    const resManifest = await fetch(`${baseUrl}/device/test-dev/manifest`);
+    assert.strictEqual(resManifest.status, 200);
+    const bodyManifest = await resManifest.json();
+    assert.strictEqual(bodyManifest.device_id, "test-dev");
+    assert.strictEqual(bodyManifest.status, "offline");
+    assert.strictEqual(bodyManifest.fqbn, "esp32:esp32:esp32");
+    assert.ok(bodyManifest.firmware_url.includes("/device/test-dev/firmware"));
+
+    // 3. POST /command with direct pin action
+    const resCmd = await fetch(`${baseUrl}/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId: 'test-dev',
+        action: 'DIGITAL_WRITE',
+        pin: 2,
+        value: 1
+      })
+    });
+    assert.strictEqual(resCmd.status, 200);
+    const bodyCmd = await resCmd.json();
+    assert.strictEqual(bodyCmd.type, 'action');
+    assert.strictEqual(bodyCmd.action, 'DIGITAL_WRITE');
+  } finally {
+    await new Promise((resolve) => testServer.close(resolve));
+  }
+});
+
