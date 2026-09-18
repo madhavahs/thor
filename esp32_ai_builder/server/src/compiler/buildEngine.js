@@ -17,7 +17,19 @@ async function compileProject(sketchCode, options = {}) {
   } = options;
 
   const buildDir = path.join(config.workspaceDir, deviceId);
-  if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true });
+  if (!fs.existsSync(buildDir)) {
+    fs.mkdirSync(buildDir, { recursive: true });
+  } else {
+    // Purge old sketch files and stale artifacts to guarantee old code is replaced completely
+    try {
+      const files = fs.readdirSync(buildDir);
+      for (const f of files) {
+        if (f !== 'cache' && f !== 'bin') {
+          fs.rmSync(path.join(buildDir, f), { recursive: true, force: true });
+        }
+      }
+    } catch (e) {}
+  }
 
   // 1. Auto-detect required libraries from sketch headers and synchronize
   const detectedLibs = detectRequiredLibraries(sketchCode);
@@ -50,12 +62,20 @@ async function compileProject(sketchCode, options = {}) {
     fs.copyFileSync(partitionsSrc, path.join(buildDir, 'partitions.csv'));
   }
 
-  // 3. Compile with arduino-cli
-  onLog('[BUILD] Invoking arduino-cli compile...');
-  const fqbn = 'esp32:esp32:esp32';
+  // 3. Clean previous binaries and compile with arduino-cli
   const outBinDir = path.join(buildDir, 'bin');
+  if (fs.existsSync(outBinDir)) {
+    try {
+      const bins = fs.readdirSync(outBinDir);
+      for (const b of bins) {
+        fs.rmSync(path.join(outBinDir, b), { force: true });
+      }
+    } catch (e) {}
+  } else {
+    fs.mkdirSync(outBinDir, { recursive: true });
+  }
+
   const buildCacheDir = path.join(buildDir, 'cache');
-  if (!fs.existsSync(outBinDir)) fs.mkdirSync(outBinDir, { recursive: true });
   
   // Inherit pre-warmed cache from default device if available
   const defaultCache = path.join(config.workspaceDir, 'esp32-01', 'cache');
@@ -66,6 +86,8 @@ async function compileProject(sketchCode, options = {}) {
   }
   if (!fs.existsSync(buildCacheDir)) fs.mkdirSync(buildCacheDir, { recursive: true });
 
+  onLog('[BUILD] Invoking arduino-cli compile with space optimization (-Os, CORE_DEBUG_LEVEL=0)...');
+  const fqbn = 'esp32:esp32:esp32';
   const cpuJobs = String(Math.min(4, Math.max(2, os.cpus()?.length || 2)));
   const buildArgs = [
     'compile',
@@ -73,6 +95,9 @@ async function compileProject(sketchCode, options = {}) {
     '--output-dir', outBinDir,
     '--build-path', buildCacheDir,
     '--jobs', cpuJobs,
+    '--build-property', 'compiler.optimization_flags=-Os -DCORE_DEBUG_LEVEL=0 -ffunction-sections -fdata-sections -Wl,--gc-sections',
+    '--build-property', 'compiler.c.extra_flags=-Os -DCORE_DEBUG_LEVEL=0',
+    '--build-property', 'compiler.cpp.extra_flags=-Os -DCORE_DEBUG_LEVEL=0',
     buildDir
   ];
 

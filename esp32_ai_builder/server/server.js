@@ -133,6 +133,7 @@ app.post('/api/build/deploy', async (req, res) => {
   const host = req.headers.host;
   const proto = isHttps ? 'https' : 'http';
   const fwUrl = `${proto}://${host}/firmware/${deviceId}/bin/${deviceId}.ino.bin`;
+  deviceManager.markFlashing(deviceId, 25000);
   deviceManager.sendToDevice(deviceId, {
     type: 'START_OTA',
     url: fwUrl

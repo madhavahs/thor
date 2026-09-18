@@ -65,18 +65,31 @@ GuardianAgentClass Guardian;
 // ----------------------------------------------------
 `;
 
+  // Clean user code of any previously injected Guardian artifacts or duplicate headers
+  let cleanedCode = (userCode || '')
+    .replace(/\/\/\s*---\s*AUTOMATICALLY INJECTED IMMORTAL GUARDIAN AGENT[\s\S]*?\/\/ ---{20,}\n?/g, '')
+    .replace(/#define\s+GUARDIAN_[^\n]+\n/g, '')
+    .replace(/#include\s+["<]GuardianAgent\.h[">]\s*\n?/g, '')
+    .replace(/GuardianAgentClass\s+Guardian\s*;\s*\n?/g, '')
+    .replace(/Guardian\.begin\(\)\s*;\s*\n?/g, '');
+
   // Search for setup() function to inject Guardian.begin()
   const setupRegex = /(void\s+setup\s*\(\s*\)\s*\{)/;
-  let modifiedCode = userCode;
+  let modifiedCode = cleanedCode;
 
-  if (setupRegex.test(userCode)) {
-    modifiedCode = userCode.replace(
+  if (setupRegex.test(cleanedCode)) {
+    modifiedCode = cleanedCode.replace(
       setupRegex,
       `$1\n  Guardian.begin();`
     );
   } else {
-    // If no setup found, append one
-    modifiedCode += `\nvoid setup() {\n  Guardian.begin();\n}\n`;
+    modifiedCode = `void setup() {\n  Guardian.begin();\n}\n\n` + cleanedCode;
+  }
+
+  // Ensure loop() exists if user sketch omitted it
+  const loopRegex = /void\s+loop\s*\(\s*\)/;
+  if (!loopRegex.test(modifiedCode)) {
+    modifiedCode += `\nvoid loop() {\n  vTaskDelay(pdMS_TO_TICKS(100));\n}\n`;
   }
 
   return headerDefines + modifiedCode;

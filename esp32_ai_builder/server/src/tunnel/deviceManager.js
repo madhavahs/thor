@@ -1,29 +1,77 @@
 class DeviceManager {
   constructor() {
-    this.devices = new Map(); // deviceId -> { ws, info, lastSeen }
+    this.devices = new Map(); // deviceId -> { ws, info, lastSeen, flashingUntil, graceTimer }
     this.uiClients = new Set(); // Set of active dashboard WebSocket clients
   }
 
+  markFlashing(deviceId, durationMs = 15000) {
+    const dev = this.devices.get(deviceId);
+    if (dev) {
+      dev.flashingUntil = Date.now() + durationMs;
+    }
+    this.broadcastToUi({
+      type: 'DEVICE_STATUS',
+      deviceId,
+      online: true,
+      flashing: true
+    });
+  }
+
   registerDevice(deviceId, ws, req) {
+    const existing = this.devices.get(deviceId);
+    if (existing && existing.graceTimer) {
+      clearTimeout(existing.graceTimer);
+    }
+
     this.devices.set(deviceId, {
       ws,
       info: { deviceId, connectedAt: Date.now() },
-      lastSeen: Date.now()
+      lastSeen: Date.now(),
+      flashingUntil: 0,
+      graceTimer: null
     });
 
     this.broadcastToUi({
       type: 'DEVICE_STATUS',
       deviceId,
-      online: true
+      online: true,
+      flashing: false
     });
   }
 
   unregisterDevice(deviceId) {
+    const dev = this.devices.get(deviceId);
+    if (dev && dev.flashingUntil && Date.now() < dev.flashingUntil) {
+      // Device is in the middle of an OTA reboot: preserve online status during grace period
+      const remaining = dev.flashingUntil - Date.now();
+      this.broadcastToUi({
+        type: 'DEVICE_STATUS',
+        deviceId,
+        online: true,
+        flashing: true
+      });
+
+      dev.graceTimer = setTimeout(() => {
+        const current = this.devices.get(deviceId);
+        if (!current || !current.ws || current.ws.readyState !== 1) {
+          this.devices.delete(deviceId);
+          this.broadcastToUi({
+            type: 'DEVICE_STATUS',
+            deviceId,
+            online: false,
+            flashing: false
+          });
+        }
+      }, remaining);
+      return;
+    }
+
     this.devices.delete(deviceId);
     this.broadcastToUi({
       type: 'DEVICE_STATUS',
       deviceId,
-      online: false
+      online: false,
+      flashing: false
     });
   }
 
@@ -32,6 +80,7 @@ class DeviceManager {
     if (dev) {
       dev.info = { ...dev.info, ...data };
       dev.lastSeen = Date.now();
+      dev.flashingUntil = 0;
     }
     this.broadcastToUi({
       type: 'TELEMETRY',
@@ -103,7 +152,7 @@ class DeviceManager {
 
   sendToDevice(deviceId, payload) {
     const dev = this.devices.get(deviceId);
-    if (dev && dev.ws.readyState === 1) {
+    if (dev && dev.ws && dev.ws.readyState === 1) {
       dev.ws.send(JSON.stringify(payload));
       return true;
     }

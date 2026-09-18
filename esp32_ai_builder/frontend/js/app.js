@@ -34,24 +34,27 @@ const ANALOG_PINS = [
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Initialize CodeMirror
+  // 1. Initialize Minimalist CodeMirror Editor
   editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
     mode: 'text/x-c++src',
     theme: 'nord',
     lineNumbers: true,
-    tabSize: 2
+    tabSize: 2,
+    lineWrapping: true
   });
 
-  editor.setValue(`// Describe your project in the prompt above, or write C++ here
+  editor.setValue(`// Write your new C++ code below or describe it in the AI prompt above
+// Guardian agent runs in the background on Core 0 preserving all remote controls
+
 void setup() {
   pinMode(2, OUTPUT);
 }
 
 void loop() {
   digitalWrite(2, HIGH);
-  delay(1000);
+  delay(500);
   digitalWrite(2, LOW);
-  delay(1000);
+  delay(500);
 }
 `);
 
@@ -60,13 +63,17 @@ void loop() {
   const tabGpioBtn = document.getElementById('tabGpioBtn');
   const forgeTabContent = document.getElementById('forgeTabContent');
   const gpioTabContent = document.getElementById('gpioTabContent');
+  const mobileForgeNav = document.getElementById('mobileForgeNav');
 
   tabForgeBtn.onclick = () => {
     tabForgeBtn.classList.add('active');
     tabGpioBtn.classList.remove('active');
     forgeTabContent.classList.add('active');
     gpioTabContent.classList.remove('active');
-    editor.refresh();
+    if (window.innerWidth <= 960) {
+      mobileForgeNav.style.display = 'flex';
+    }
+    setTimeout(() => editor.refresh(), 50);
   };
 
   tabGpioBtn.onclick = () => {
@@ -74,17 +81,102 @@ void loop() {
     tabForgeBtn.classList.remove('active');
     gpioTabContent.classList.add('active');
     forgeTabContent.classList.remove('active');
-    // Request fresh scan
+    mobileForgeNav.style.display = 'none';
+    // Request fresh hardware scan
     API.scanAllPins(DEFAULT_DEVICE_ID);
   };
+
+  // Mobile Sub-Navigation for Tab 1 (Forge)
+  const mobileNavEditorBtn = document.getElementById('mobileNavEditorBtn');
+  const mobileNavLibsBtn = document.getElementById('mobileNavLibsBtn');
+  const mobileNavConsoleBtn = document.getElementById('mobileNavConsoleBtn');
+  const editorSection = document.getElementById('editorSection');
+  const libraryCard = document.getElementById('libraryCard');
+  const consoleCard = document.getElementById('consoleCard');
+
+  function updateMobileForgeView(view) {
+    if (window.innerWidth > 960) {
+      editorSection.style.display = '';
+      libraryCard.style.display = '';
+      consoleCard.style.display = '';
+      return;
+    }
+
+    if (view === 'editor') {
+      mobileNavEditorBtn?.classList.add('active');
+      mobileNavLibsBtn?.classList.remove('active');
+      mobileNavConsoleBtn?.classList.remove('active');
+      editorSection.style.display = 'flex';
+      libraryCard.style.display = 'none';
+      consoleCard.style.display = 'none';
+      setTimeout(() => editor.refresh(), 50);
+    } else if (view === 'libs') {
+      mobileNavLibsBtn?.classList.add('active');
+      mobileNavEditorBtn?.classList.remove('active');
+      mobileNavConsoleBtn?.classList.remove('active');
+      editorSection.style.display = 'none';
+      libraryCard.style.display = 'flex';
+      consoleCard.style.display = 'none';
+    } else if (view === 'console') {
+      mobileNavConsoleBtn?.classList.add('active');
+      mobileNavEditorBtn?.classList.remove('active');
+      mobileNavLibsBtn?.classList.remove('active');
+      editorSection.style.display = 'none';
+      libraryCard.style.display = 'none';
+      consoleCard.style.display = 'flex';
+    }
+  }
+
+  if (mobileNavEditorBtn) {
+    mobileNavEditorBtn.onclick = () => updateMobileForgeView('editor');
+    mobileNavLibsBtn.onclick = () => updateMobileForgeView('libs');
+    mobileNavConsoleBtn.onclick = () => updateMobileForgeView('console');
+  }
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 960) {
+      editorSection.style.display = '';
+      libraryCard.style.display = '';
+      consoleCard.style.display = '';
+      mobileForgeNav.style.display = 'none';
+    } else if (tabForgeBtn.classList.contains('active')) {
+      mobileForgeNav.style.display = 'flex';
+      const activeBtn = document.querySelector('.mobile-nav-btn.active');
+      if (activeBtn === mobileNavLibsBtn) updateMobileForgeView('libs');
+      else if (activeBtn === mobileNavConsoleBtn) updateMobileForgeView('console');
+      else updateMobileForgeView('editor');
+    }
+  });
+
+  // Initial mobile check
+  if (window.innerWidth <= 960 && tabForgeBtn.classList.contains('active')) {
+    updateMobileForgeView('editor');
+  }
 
   // 3. Connect WebSocket to Cloud Hub
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/ui`);
 
   const statusBadge = document.getElementById('deviceStatus');
+  const statusText = document.getElementById('deviceStatusText');
   const consoleBox = document.getElementById('consoleOutput');
   const hwLogBox = document.getElementById('hwEventLog');
+
+  let isFlashing = false;
+  let flashTimeout = null;
+
+  function setDeviceStatus(mode, text) {
+    if (mode === 'flashing') {
+      statusBadge.className = 'device-badge flashing';
+      statusText.textContent = text || 'Flashing & Swapping Code...';
+    } else if (mode === 'online') {
+      statusBadge.className = 'device-badge online';
+      statusText.textContent = text || 'ESP32 Online';
+    } else {
+      statusBadge.className = 'device-badge';
+      statusText.textContent = text || 'No Devices Connected';
+    }
+  }
 
   function log(msg) {
     consoleBox.textContent += msg + '\n';
@@ -103,14 +195,27 @@ void loop() {
     hwLogBox.innerHTML = '';
   };
 
-  // 4. WebSocket Dispatcher
+  document.getElementById('clearLogsBtn').onclick = () => {
+    consoleBox.textContent = '';
+  };
+
+  // 4. WebSocket Dispatcher with Seamless Reconnection Continuity
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
       if (data.type === 'INIT_DEVICE_LIST' || data.type === 'DEVICE_STATUS') {
         const isOnline = data.online || (data.devices && data.devices.length > 0);
-        statusBadge.textContent = isOnline ? '● ESP32 Online' : '○ No Devices Connected';
-        statusBadge.className = 'device-badge ' + (isOnline ? 'online' : '');
+        const deviceFlashing = data.flashing || isFlashing;
+
+        if (deviceFlashing) {
+          setDeviceStatus('flashing', 'Hot-Swapping Code...');
+        } else if (isOnline) {
+          isFlashing = false;
+          clearTimeout(flashTimeout);
+          setDeviceStatus('online', 'ESP32 Online');
+        } else {
+          setDeviceStatus('offline', 'No Devices Connected');
+        }
       } else if (data.type === 'BUILD_LOG' || data.type === 'SERIAL_STREAM') {
         log(data.log);
       } else if (data.type === 'PIN_STATE') {
@@ -120,6 +225,11 @@ void loop() {
         applyAllPinsReport(data.data || data);
       } else if (data.type === 'TELEMETRY') {
         updateTelemetryPills(data.data);
+        if (isFlashing) {
+          isFlashing = false;
+          clearTimeout(flashTimeout);
+          setDeviceStatus('online', 'ESP32 Online');
+        }
       }
     } catch (err) {
       console.error('WS Parse Error', err);
@@ -143,7 +253,7 @@ void loop() {
 
   // 5. Build Interactive GPIO Pin Grid
   const digitalGrid = document.getElementById('digitalPinsGrid');
-  const analogGrid = document.getElementById('analogSensorsGrid');
+  const analogGrid = document.getElementById('analogSensGrid');
 
   DIGITAL_PINS.forEach(({ pin, label }) => {
     const card = document.createElement('div');
@@ -156,7 +266,7 @@ void loop() {
       </div>
       <div class="pin-controls">
         <button class="pin-toggle-btn" id="toggle-${pin}" onclick="toggleDigitalPin(${pin})">OFF</button>
-        <button class="pin-read-btn" onclick="readDigitalPin(${pin})">👁️</button>
+        <button class="pin-read-btn" onclick="readDigitalPin(${pin})" title="Read State">👁️</button>
       </div>
       <div class="pin-pwm-row">
         <div class="pin-pwm-label">
@@ -170,6 +280,7 @@ void loop() {
     digitalGrid.appendChild(card);
   });
 
+  const analogSensGrid = document.getElementById('analogSensorsGrid');
   ANALOG_PINS.forEach(({ pin, label }) => {
     const card = document.createElement('div');
     card.className = 'sensor-card';
@@ -184,10 +295,10 @@ void loop() {
       </div>
       <div class="sensor-footer">
         <span id="sensor-volt-${pin}">0.00 V</span>
-        <button class="btn small" onclick="readAnalogPin(${pin})">Read</button>
+        <button class="btn small secondary" onclick="readAnalogPin(${pin})">Read</button>
       </div>
     `;
-    analogGrid.appendChild(card);
+    analogSensGrid.appendChild(card);
   });
 
   // 6. Real-time UI Update Handlers
@@ -246,10 +357,10 @@ void loop() {
     }
     const now = new Date().toLocaleTimeString();
     document.getElementById('teleLastScan').textContent = `🕒 Last Scan: ${now}`;
-    logHw(`⚡ Master Scan received: updated ${Object.keys(report.digital || {}).length} digital pins & ${Object.keys(report.analog || {}).length} analog sensors`);
+    logHw(`⚡ Master Scan received: updated pins and sensors`);
   }
 
-  // 7. Global Hardware Actions (attached to window for onclick handlers)
+  // 7. Global Hardware Actions
   window.toggleDigitalPin = async (pin) => {
     const toggle = document.getElementById(`toggle-${pin}`);
     const willBeOn = !toggle.classList.contains('on');
@@ -318,7 +429,7 @@ void loop() {
     const prompt = aiHwInput.value.trim();
     if (!prompt) return;
     aiHwFeedback.classList.remove('hidden');
-    aiHwFeedback.textContent = `🤖 Processing: "${prompt}"...`;
+    aiHwFeedback.textContent = `Processing command: "${prompt}"...`;
     logHw(`[AI Hardware] Command: "${prompt}"`);
 
     try {
@@ -355,8 +466,8 @@ void loop() {
       activeLibraries = res.libraries;
       res.libraries.forEach(lib => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${lib.name} <small style="color:#6b7280">(${lib.version})</small></span>
-                        <button onclick="removeLib('${lib.name}')">🗑️</button>`;
+        li.innerHTML = `<span>${lib.name} <small style="color:var(--text-light)">(${lib.version})</small></span>
+                        <button onclick="removeLib('${lib.name}')" title="Uninstall">✕</button>`;
         list.appendChild(li);
       });
     }
@@ -405,13 +516,21 @@ void loop() {
     }
   };
 
-  // 12. Deploy OTA Button
+  // 12. Deploy OTA Button: Seamless Hot-Swap without Web Disconnect
   document.getElementById('deployBtn').onclick = async () => {
     const sketchCode = editor.getValue();
     const pruneBox = document.getElementById('autoPruneCheckbox');
     const autoPrune = pruneBox ? pruneBox.checked : true;
 
-    log(`[DEPLOY] Starting build & OTA deployment (Auto-prune: ${autoPrune})...`);
+    log(`[DEPLOY] Purging old sketch & compiling new working code (Auto-prune: ${autoPrune})...`);
+    isFlashing = true;
+    setDeviceStatus('flashing', 'Compiling & Hot-Swapping Code...');
+
+    clearTimeout(flashTimeout);
+    flashTimeout = setTimeout(() => {
+      isFlashing = false;
+    }, 25000);
+
     try {
       const res = await API.deployProject({
         sketchCode,
@@ -421,19 +540,20 @@ void loop() {
         serverHost: (window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') ? window.location.hostname : undefined,
         serverPort: window.location.port ? parseInt(window.location.port, 10) : (window.location.protocol === 'https:' ? 443 : 80)
       });
+
       if (res.success) {
-        log(`[DEPLOY SUCCESS] ${res.message}`);
-        // Refresh active libraries to reflect newly auto-installed or auto-pruned libraries
+        log(`[DEPLOY SUCCESS] Binary flashed. ESP32 rebooting into new code seamlessly...`);
+        setDeviceStatus('flashing', 'Rebooting into New Code...');
         setTimeout(loadLibs, 1000);
       } else {
+        isFlashing = false;
         log(`[DEPLOY FAILED] ${res.error}`);
+        setDeviceStatus('online', 'ESP32 Online');
       }
     } catch (err) {
+      isFlashing = false;
       log(`[DEPLOY ERROR] ${err.message}`);
+      setDeviceStatus('online', 'ESP32 Online');
     }
-  };
-
-  document.getElementById('clearLogsBtn').onclick = () => {
-    consoleBox.textContent = '';
   };
 });

@@ -22,10 +22,11 @@ public:
   void begin() {
     bootTime = millis();
     Serial.println("[GUARDIAN] Initializing Immortal Guardian background task on Core 0...");
+    // Optimized FreeRTOS stack: 4096 bytes (halved from 8192, saves 4KB SRAM for user sketches)
     xTaskCreatePinnedToCore(
       taskTrampoline,
       "GuardianTask",
-      8192,
+      4096,
       this,
       1,
       NULL,
@@ -69,6 +70,7 @@ private:
     }
     if (port == 0) port = GUARDIAN_SERVER_PORT;
 
+    WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), pass.c_str());
 
@@ -102,7 +104,8 @@ private:
     wsClient.onEvent([this, &prefs, host, port](WStype_t type, uint8_t* payload, size_t length) {
       this->handleWsEvent(type, payload, length, prefs, host, port);
     });
-    wsClient.setReconnectInterval(3000);
+    // Rapid reconnect: 500ms so reconnection after reboot happens near-instantly
+    wsClient.setReconnectInterval(500);
 
     for (;;) {
       wsClient.loop();
@@ -297,15 +300,26 @@ private:
       http.end();
       return;
     }
+
     WiFiClient* stream = http.getStreamPtr();
-    uint8_t buff[4096];
+    // Dynamic buffer allocation instead of large stack footprint
+    const size_t buffSize = 2048;
+    uint8_t* buff = (uint8_t*)malloc(buffSize);
+    if (!buff) {
+      Serial.println("[GUARDIAN] Memory allocation failed for OTA buffer");
+      logRemote("[OTA] Error: Insufficient RAM for OTA buffer");
+      http.end();
+      Update.abort();
+      return;
+    }
+
     int bytesWritten = 0;
     int lastPercent = -1;
 
     while (http.connected() && (bytesWritten < totalSize)) {
       size_t avail = stream->available();
       if (avail) {
-        int readBytes = stream->readBytes(buff, ((avail > sizeof(buff)) ? sizeof(buff) : avail));
+        int readBytes = stream->readBytes(buff, ((avail > buffSize) ? buffSize : avail));
         Update.write(buff, readBytes);
         bytesWritten += readBytes;
 
@@ -316,12 +330,16 @@ private:
           logRemote("[OTA] Flashing: " + String(percent) + "%");
         }
       }
+      // Service WebSocket event loop so connection doesn't drop during long download
+      wsClient.loop();
       vTaskDelay(1);
     }
 
+    free(buff);
+
     if (bytesWritten == totalSize && Update.end(true)) {
       Serial.println("[GUARDIAN] OTA Complete! Rebooting into new firmware...");
-      logRemote("[OTA] Flash 100% Complete! Rebooting...");
+      logRemote("[OTA] Flash 100% Complete! Hot-swapping code now...");
       vTaskDelay(pdMS_TO_TICKS(500));
       ESP.restart();
     } else {

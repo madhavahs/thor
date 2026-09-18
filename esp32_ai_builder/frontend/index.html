@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ESP32 Worldwide AI Forge</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -10,28 +10,42 @@
 </head>
 <body>
   <div class="app-layout">
+    <!-- Top Minimalist Header -->
     <header class="app-header">
       <div class="header-left">
-        <div class="logo">⚡ ESP32 AI FORGE</div>
+        <div class="logo">
+          <span class="logo-icon">⚡</span>
+          <span>ESP32 AI FORGE</span>
+        </div>
         <nav class="nav-tabs">
-          <button id="tabForgeBtn" class="tab-btn active">💻 AI Firmware Forge</button>
-          <button id="tabGpioBtn" class="tab-btn">🎛️ Live GPIO & Sensors</button>
+          <button id="tabForgeBtn" class="tab-btn active">AI Firmware Forge</button>
+          <button id="tabGpioBtn" class="tab-btn">Live GPIO & Sensors</button>
         </nav>
       </div>
       <div class="header-right">
-        <div class="device-badge" id="deviceStatus">Connecting to Cloud Hub...</div>
+        <div class="device-badge" id="deviceStatus">
+          <span class="status-dot"></span>
+          <span id="deviceStatusText">Connecting...</span>
+        </div>
       </div>
     </header>
+
+    <!-- Mobile Sub-Navigation for Tab 1 (Visible on screens <= 960px) -->
+    <div id="mobileForgeNav" class="mobile-forge-nav">
+      <button id="mobileNavEditorBtn" class="mobile-nav-btn active">💻 C++ Editor</button>
+      <button id="mobileNavLibsBtn" class="mobile-nav-btn">📚 Libraries</button>
+      <button id="mobileNavConsoleBtn" class="mobile-nav-btn">🖥️ Terminal Logs</button>
+    </div>
 
     <!-- TAB 1: AI Firmware Forge & Remote Serial -->
     <div id="forgeTabContent" class="tab-content active main-content">
       <!-- Left Panel: AI Studio & Editor -->
-      <section class="editor-section">
+      <section class="editor-section" id="editorSection">
         <div class="ai-prompt-box">
           <input type="text" id="aiPrompt" placeholder="Describe hardware behavior (e.g. Read BME280 on I2C and show on SSD1306)...">
           <button id="generateBtn" class="btn primary">✨ Generate with AI</button>
-          <button id="deployBtn" class="btn success">🚀 Compile & Flash OTA</button>
-          <label style="display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--text-muted); cursor:pointer;" title="Automatically install required libraries and prune unused ones">
+          <button id="deployBtn" class="btn flash-btn">⚡ Compile & Flash OTA</button>
+          <label class="checkbox-label" title="Automatically install required libraries and prune unused ones">
             <input type="checkbox" id="autoPruneCheckbox" checked> Auto-Prune Libs
           </label>
         </div>
@@ -41,14 +55,15 @@
       </section>
 
       <!-- Right Panel: Libraries & Console -->
-      <section class="side-section">
-        <div class="card library-card">
+      <section class="side-section" id="sideSection">
+        <!-- Libraries Card -->
+        <div class="card library-card" id="libraryCard">
           <div class="card-header">
             <div>
-              <h3>📚 Active Libraries</h3>
-              <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px;">⚡ Auto-installs needed & deletes unneeded</div>
+              <h3>Active Libraries</h3>
+              <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px; font-weight: 500;">● Auto-syncs dependencies & prunes unused</div>
             </div>
-            <button id="refreshLibsBtn" class="btn small">🔄</button>
+            <button id="refreshLibsBtn" class="btn small secondary">Sync</button>
           </div>
           <div class="lib-install-row">
             <input type="text" id="newLibInput" placeholder="Install library name...">
@@ -57,10 +72,11 @@
           <ul id="libraryList" class="library-list"></ul>
         </div>
 
-        <div class="card console-card">
+        <!-- Build & Serial Console Card -->
+        <div class="card console-card" id="consoleCard">
           <div class="card-header">
-            <h3>🖥️ Live Build & Remote Serial</h3>
-            <button id="clearLogsBtn" class="btn small">Clear</button>
+            <h3>Live Build & Remote Serial Console</h3>
+            <button id="clearLogsBtn" class="btn small secondary">Clear</button>
           </div>
           <pre id="consoleOutput" class="console-box"></pre>
         </div>
@@ -73,8 +89,8 @@
       <div class="ai-hardware-bar">
         <div class="ai-input-wrap">
           <span class="ai-sparkle">🤖</span>
-          <input type="text" id="aiHwCommandInput" placeholder="Ask AI to command hardware or read sensors (e.g. 'Turn on pin 2 LED and set pin 4 PWM to 180', 'Read all analog sensors')...">
-          <button id="sendAiHwBtn" class="btn primary">⚡ Execute AI Command</button>
+          <input type="text" id="aiHwCommandInput" placeholder="Ask AI to command hardware (e.g. 'Turn on pin 2 LED and set pin 4 PWM to 180', 'Read all analog sensors')...">
+          <button id="sendAiHwBtn" class="btn primary">Execute Command</button>
         </div>
         <div id="aiHwFeedback" class="ai-feedback-box hidden"></div>
       </div>
@@ -82,7 +98,7 @@
       <!-- Master Toolbar & Telemetry -->
       <div class="gpio-master-toolbar">
         <div class="master-actions">
-          <button id="scanAllPinsBtn" class="btn primary highlight">⚡ Scan All Sensors & Actuators</button>
+          <button id="scanAllPinsBtn" class="btn flash-btn">⚡ Scan All Sensors & Pins</button>
           <button id="emergencyStopBtn" class="btn danger">🛑 Emergency Stop (All LOW)</button>
         </div>
         <div class="telemetry-pill-row">
@@ -98,7 +114,7 @@
         <!-- Actuators & Digital Pins -->
         <section class="gpio-card actuators-card">
           <div class="section-title-row">
-            <h3>⚡ Actuators & Digital Outputs / Inputs</h3>
+            <h3>Actuators & Digital I/O Channels</h3>
             <span class="sub-label">Click toggle for HIGH/LOW or drag slider for PWM (0-255)</span>
           </div>
           <div id="digitalPinsGrid" class="pins-grid"></div>
@@ -107,15 +123,15 @@
         <!-- Analog Sensors & Stream -->
         <section class="gpio-card sensors-card">
           <div class="section-title-row">
-            <h3>📊 Analog Sensors (ADC1)</h3>
+            <h3>Analog Sensors (ADC1)</h3>
             <span class="sub-label">Wi-Fi safe 12-bit ADC (0 - 4095 / 0 - 3.3V)</span>
           </div>
           <div id="analogSensorsGrid" class="sensors-grid"></div>
 
           <div class="hw-log-section">
             <div class="card-header">
-              <h4>📡 Live Hardware Event Log</h4>
-              <button id="clearHwLogsBtn" class="btn small">Clear</button>
+              <h4>Live Hardware Event Log</h4>
+              <button id="clearHwLogsBtn" class="btn small secondary">Clear</button>
             </div>
             <div id="hwEventLog" class="hw-log-box"></div>
           </div>
